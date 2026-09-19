@@ -1,0 +1,65 @@
+name: Publish CI Artifacts to GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: "GitHub Actions Run ID to publish"
+        required: true
+        default: "35446032795"
+      tag-name:
+        description: "Release tag name"
+        required: true
+        default: "v12.0.0-offline"
+      title:
+        description: "Release Title"
+        required: true
+        default: "Prism Launcher v12.0.0 (Offline Mode Enabled)"
+      prerelease:
+        description: "Mark as pre-release"
+        type: boolean
+        default: true
+
+jobs:
+  publish:
+    name: Package and Publish Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Download all artifacts from build run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: raw_artifacts
+
+      - name: Organize release assets
+        run: |
+          mkdir -p release_assets
+          # Copy all artifact files into the release_assets directory
+          find raw_artifacts -type f -exec cp -v {} release_assets/ \;
+          ls -lah release_assets/
+
+      - name: Create GitHub Release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag-name }}
+          target_commitish: develop
+          name: ${{ inputs.title }}
+          prerelease: ${{ inputs.prerelease }}
+          files: release_assets/*
+          token: ${{ secrets.GITHUB_TOKEN }}
+          body: |
+            ### Prism Launcher (Offline Mode Enabled)
+
+            This release features offline account creation and gameplay without requiring Minecraft Microsoft account ownership.
+
+            #### Key Features:
+            - **Offline Mode Account Creation**: Directly create offline accounts via "Add Offline" without owning Minecraft on Microsoft.
+            - **Optional Microsoft Sign-In**: Microsoft account login remains available for users who own the game on Microsoft.
+            - **Launch Controller Improvements**: Clean and robust launch flow without forcing demo mode.
+
+            **Public Downloads:** Any user can download the installer or portable packages below without needing a GitHub account.
