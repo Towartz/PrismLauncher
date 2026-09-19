@@ -29,6 +29,9 @@ jobs:
       actions: read
 
     steps:
+      - name: Install zip
+        run: sudo apt-get update && sudo apt-get install -y zip
+
       - name: Download all artifacts from build run
         uses: actions/download-artifact@v4
         with:
@@ -38,9 +41,72 @@ jobs:
 
       - name: Organize release assets
         run: |
+          VERSION="${{ inputs.tag-name }}"
           mkdir -p release_assets
-          # Copy all artifact files into the release_assets directory
-          find raw_artifacts -type f -exec cp -v {} release_assets/ \;
+
+          cd raw_artifacts
+
+          # Linux AppImages and zsync
+          for f in PrismLauncher-Linux-*-Release-x86_64.AppImage/PrismLauncher-Linux-*-Release-x86_64.AppImage; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-x86_64-${VERSION}.AppImage
+          done
+          for f in PrismLauncher-Linux-*-Release-x86_64.AppImage.zsync/PrismLauncher-Linux-*-Release-x86_64.AppImage.zsync; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-x86_64-${VERSION}.AppImage.zsync
+          done
+          for f in PrismLauncher-Linux-*-Release-aarch64.AppImage/PrismLauncher-Linux-*-Release-aarch64.AppImage; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-aarch64-${VERSION}.AppImage
+          done
+          for f in PrismLauncher-Linux-*-Release-aarch64.AppImage.zsync/PrismLauncher-Linux-*-Release-aarch64.AppImage.zsync; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-aarch64-${VERSION}.AppImage.zsync
+          done
+
+          # Linux Portables
+          for f in PrismLauncher-Linux-Qt6-Portable-*/PrismLauncher-portable.tar.gz; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-Qt6-Portable-${VERSION}.tar.gz
+          done
+          for f in PrismLauncher-Linux-aarch64-Qt6-Portable-*/PrismLauncher-portable.tar.gz; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-Linux-aarch64-Qt6-Portable-${VERSION}.tar.gz
+          done
+
+          # macOS
+          for f in PrismLauncher-macOS-*.dmg/PrismLauncher.dmg; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-macOS-${VERSION}.dmg
+          done
+          for f in PrismLauncher-macOS-*/PrismLauncher.zip; do
+            [ -f "$f" ] && cp "$f" ../release_assets/PrismLauncher-macOS-${VERSION}.zip
+          done
+
+          # Windows MSVC x64
+          for d in PrismLauncher-Windows-MSVC-Setup-*; do
+            [ -d "$d" ] && cp "$d"/PrismLauncher*.exe ../release_assets/PrismLauncher-Windows-MSVC-Setup-${VERSION}.exe
+          done
+          for d in PrismLauncher-Windows-MSVC-Portable-*; do
+            if [ -d "$d" ]; then
+              (cd "$d" && zip -r -9 "../../release_assets/PrismLauncher-Windows-MSVC-Portable-${VERSION}.zip" .)
+            fi
+          done
+
+          # Windows MinGW x64
+          for d in PrismLauncher-Windows-MinGW-w64-Setup-*; do
+            [ -d "$d" ] && cp "$d"/PrismLauncher*.exe ../release_assets/PrismLauncher-Windows-MinGW-w64-Setup-${VERSION}.exe
+          done
+          for d in PrismLauncher-Windows-MinGW-w64-Portable-*; do
+            if [ -d "$d" ]; then
+              (cd "$d" && zip -r -9 "../../release_assets/PrismLauncher-Windows-MinGW-w64-Portable-${VERSION}.zip" .)
+            fi
+          done
+
+          # Windows MSVC ARM64
+          for d in PrismLauncher-Windows-MSVC-arm64-Setup-*; do
+            [ -d "$d" ] && cp "$d"/PrismLauncher*.exe ../release_assets/PrismLauncher-Windows-MSVC-arm64-Setup-${VERSION}.exe
+          done
+          for d in PrismLauncher-Windows-MSVC-arm64-Portable-*; do
+            if [ -d "$d" ]; then
+              (cd "$d" && zip -r -9 "../../release_assets/PrismLauncher-Windows-MSVC-arm64-Portable-${VERSION}.zip" .)
+            fi
+          done
+
+          cd ..
           ls -lah release_assets/
 
       - name: Create GitHub Release with assets
@@ -55,7 +121,7 @@ jobs:
           body: |
             ### Prism Launcher (Offline Mode Enabled)
 
-            This release features offline account creation and gameplay without requiring Minecraft Microsoft account ownership.
+            This release allows offline account creation and gameplay without requiring Minecraft Microsoft account ownership.
 
             #### Key Features:
             - **Offline Mode Account Creation**: Directly create offline accounts via "Add Offline" without owning Minecraft on Microsoft.
