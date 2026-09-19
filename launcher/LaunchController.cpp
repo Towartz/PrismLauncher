@@ -132,7 +132,7 @@ void LaunchController::decideAccount()
 LaunchDecision LaunchController::decideLaunchMode()
 {
     if (m_accountToUse && m_accountToUse->accountType() == AccountType::Offline) {
-        m_actualLaunchMode = LaunchMode::Offline;
+        m_actualLaunchMode = m_wantedLaunchMode == LaunchMode::Offline ? LaunchMode::Offline : LaunchMode::Normal;
         return LaunchDecision::Continue;
     }
 
@@ -392,10 +392,12 @@ void LaunchController::launchInstance()
     if (m_actualLaunchMode == LaunchMode::Normal) {
         online_mode = "online";
 
-        // Prepend Server Status
-        const QStringList servers = { "login.microsoftonline.com", "session.minecraft.net", "textures.minecraft.net", "api.mojang.com" };
+        // Prepend Server Status only for Microsoft / online accounts
+        if (!m_accountToUse || m_accountToUse->accountType() != AccountType::Offline) {
+            const QStringList servers = { "login.microsoftonline.com", "session.minecraft.net", "textures.minecraft.net", "api.mojang.com" };
 
-        m_launcher->prependStep(makeShared<PrintServers>(m_launcher, servers));
+            m_launcher->prependStep(makeShared<PrintServers>(m_launcher, servers));
+        }
     } else {
         online_mode = m_actualLaunchMode == LaunchMode::Demo ? "demo" : "offline";
     }

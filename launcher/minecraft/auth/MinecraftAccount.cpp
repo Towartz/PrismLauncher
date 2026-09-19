@@ -257,6 +257,7 @@ void MinecraftAccount::fillSession(AuthSessionPtr session)
         session->session = "token:" + data.accessToken() + ":" + data.profileId();
     } else {
         session->session = "-";
+        session->access_token = "0";
     }
 }
 
