@@ -53,9 +53,16 @@
 AccountListPage::AccountListPage(QWidget* parent) : QMainWindow(parent), ui(new Ui::AccountListPage)
 {
     ui->setupUi(this);
-    ui->listView->setEmptyString(
-        tr("Welcome!\n"
-           "If you're new here, you can select the \"Add Microsoft\" button to link your Microsoft account."));
+    if (APPLICATION->capabilities() & Application::SupportsMSA) {
+        ui->listView->setEmptyString(
+            tr("Welcome!\n"
+               "If you're new here, you can select \"Add Microsoft\" to link your Microsoft account,\n"
+               "or select \"Add Offline\" to add an offline account."));
+    } else {
+        ui->listView->setEmptyString(
+            tr("Welcome!\n"
+               "Select \"Add Offline\" to add an offline account."));
+    }
     ui->listView->setEmptyMode(VersionListView::String);
     ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
 
@@ -140,14 +147,6 @@ void AccountListPage::on_actionAddMicrosoft_triggered()
 
 void AccountListPage::on_actionAddOffline_triggered()
 {
-    if (!m_accounts->anyAccountIsValid()) {
-        QMessageBox::warning(this, tr("Error"),
-                             tr("You must add a Microsoft account that owns Minecraft before you can add an offline account."
-                                "<br><br>"
-                                "If you have lost your account you can contact Microsoft for support."));
-        return;
-    }
-
     ChooseOfflineNameDialog dialog(tr("Please enter your desired username to add your offline account."), this);
     if (dialog.exec() != QDialog::Accepted) {
         return;
