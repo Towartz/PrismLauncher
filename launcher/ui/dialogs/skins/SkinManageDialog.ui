@@ -88,25 +88,45 @@
        <item>
         <widget class="QGroupBox" name="serverSharingBox">
          <property name="title">
-          <string>Server Sharing (/skin)</string>
+          <string>Server Skin Sharing &amp; URL</string>
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_sharing">
           <item>
            <widget class="QLineEdit" name="serverCmdLine">
             <property name="readOnly">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
             <property name="placeholderText">
-             <string>/skin command preview</string>
+             <string>Skin URL (e.g. https://textures.minecraft.net/...)</string>
+            </property>
+            <property name="clearButtonEnabled">
+             <bool>true</bool>
             </property>
            </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="formatHLayout">
+            <item>
+             <widget class="QLabel" name="formatLabel">
+              <property name="text">
+               <string>Format:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="skinFormatCombo"/>
+            </item>
+           </layout>
           </item>
           <item>
            <layout class="QHBoxLayout" name="sharingButtonsHLayout">
             <item>
              <widget class="QPushButton" name="copyCmdBtn">
               <property name="text">
-               <string>Copy Command</string>
+               <string>Copy URL</string>
+              </property>
+              <property name="toolTip">
+               <string>Copy skin URL link to clipboard</string>
               </property>
              </widget>
             </item>
@@ -115,6 +135,9 @@
               <property name="text">
                <string>Upload to Cloud</string>
               </property>
+              <property name="toolTip">
+               <string>Upload local skin PNG to cloud to generate a public Mojang texture URL</string>
+              </property>
              </widget>
             </item>
            </layout>
@@ -122,14 +145,17 @@
           <item>
            <widget class="QCheckBox" name="autoCopyLaunchCB">
             <property name="text">
-             <string>Auto-copy command on launch</string>
+             <string>Auto-copy on game launch</string>
+            </property>
+            <property name="toolTip">
+             <string>Automatically copy the skin URL / command to your clipboard when launching an instance with this offline account</string>
             </property>
            </widget>
           </item>
           <item>
            <widget class="QLabel" name="sharingInfoLabel">
             <property name="text">
-             <string>&lt;html&gt;&lt;body&gt;&lt;p style=&quot;color:gray;&quot;&gt;On offline servers (with SkinsRestorer), run this command in chat to share your skin with others.&lt;br/&gt;In singleplayer, your skin is applied automatically!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             <string>&lt;html&gt;&lt;body&gt;&lt;p style=&quot;color:gray;&quot;&gt;Copy this skin URL to share on offline servers (e.g. via /skin &amp;lt;url&amp;gt;), in-game menus, or web panels.&lt;br/&gt;In singleplayer, your skin is applied automatically!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="wordWrap">
              <bool>true</bool>

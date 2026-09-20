@@ -800,6 +800,7 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         // Minecraft offline player name & skin settings
         m_settings->registerSetting("LastOfflinePlayerName", "");
         m_settings->registerSetting("AutoCopyOfflineSkinCommand", true);
+        m_settings->registerSetting("OfflineSkinCopyFormat", "url");
         m_settings->registerSetting("OfflineSkinResourcePackEnabled", true);
         m_settings->registerSetting("OfflineSkinCSLEnabled", true);
 

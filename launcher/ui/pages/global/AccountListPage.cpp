@@ -271,27 +271,42 @@ void AccountListPage::on_actionCopySkinCommand_triggered()
             return;
         }
         const auto& skin = account->accountData()->minecraftProfile.skin;
-        QString cmd;
-        if (!skin.url.isEmpty() && (skin.url.startsWith("http://") || skin.url.startsWith("https://"))) {
-            cmd = QString("/skin url %1 %2").arg(skin.url, skin.variant == "slim" ? "slim" : "classic");
-        } else if (!skin.url.isEmpty() && !skin.url.contains("/") && !skin.url.contains("\\")) {
-            cmd = QString("/skin %1").arg(skin.url);
-        }
-
-        if (!cmd.isEmpty()) {
-            auto* clipboard = QGuiApplication::clipboard();
-            if (clipboard) {
-                clipboard->setText(cmd);
-                CustomMessageBox::selectable(this, tr("Command Copied"),
-                                             tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers running SkinsRestorer.").arg(cmd),
-                                             QMessageBox::Information)
-                    ->exec();
-            }
-        } else {
-            CustomMessageBox::selectable(this, tr("No Server URL"),
-                                         tr("This offline skin does not have a public server URL yet.\nPlease click 'Manage Skins' and use 'Upload to Cloud' to generate a /skin command."),
+        QString url = skin.url.trimmed();
+        if (url.isEmpty()) {
+            CustomMessageBox::selectable(this, tr("No Skin URL"),
+                                         tr("This offline skin does not have a public URL yet.\nPlease click 'Manage Skins' to enter a skin URL or click 'Upload to Cloud'."),
                                          QMessageBox::Information)
                     ->exec();
+            return;
+        }
+
+        QString format = APPLICATION->settings()->get("OfflineSkinCopyFormat").toString();
+        if (format.isEmpty()) {
+            format = "url";
+        }
+
+        QString textToCopy;
+        if (format == "skin_url") {
+            textToCopy = QString("/skin %1").arg(url);
+        } else if (format == "skin_url_model") {
+            textToCopy = QString("/skin url %1 %2").arg(url, skin.variant == "slim" ? "slim" : "classic");
+        } else if (format == "skin_set") {
+            textToCopy = QString("/skin set %1").arg(url);
+        } else {
+            // "url" (default: direct URL link)
+            textToCopy = url;
+        }
+
+        auto* clipboard = QGuiApplication::clipboard();
+        if (clipboard) {
+            clipboard->setText(textToCopy);
+            QString msg;
+            if (format == "url") {
+                msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.").arg(textToCopy);
+            } else {
+                msg = tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers.").arg(textToCopy);
+            }
+            CustomMessageBox::selectable(this, tr("Copied to Clipboard"), msg, QMessageBox::Information)->exec();
         }
     }
 }

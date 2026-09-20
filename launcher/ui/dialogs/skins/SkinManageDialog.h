@@ -60,10 +60,13 @@ class SkinManageDialog : public QDialog, public SkinProvider {
     void on_copyCmdBtn_clicked();
     void on_uploadCloudBtn_clicked();
     void on_autoCopyLaunchCB_toggled(bool checked);
+    void on_serverCmdLine_textEdited(const QString& text);
+    void on_skinFormatCombo_currentIndexChanged(int index);
 
    private:
     void setupCapes();
     void updateServerCommand();
+    QString getFormattedOutput() const;
 
    private:
     MinecraftAccountPtr m_acct;

@@ -195,19 +195,32 @@ void ApplyOfflineSkin::ensureResourcePackEnabled(const QString& gameDir)
 
 void ApplyOfflineSkin::copyServerCommand(const QString& playerName, const QString& model)
 {
-    QString cmd;
-    if (!m_session->skin_url.isEmpty() && (m_session->skin_url.startsWith("http://") || m_session->skin_url.startsWith("https://"))) {
-        cmd = QString("/skin url %1 %2").arg(m_session->skin_url, model == "slim" ? "slim" : "classic");
-    } else if (!m_session->skin_url.isEmpty() && !m_session->skin_url.contains("/") && !m_session->skin_url.contains("\\")) {
-        cmd = QString("/skin %1").arg(m_session->skin_url);
+    QString url = m_session->skin_url.trimmed();
+    QString format = APPLICATION->settings()->get("OfflineSkinCopyFormat").toString();
+    if (format.isEmpty()) {
+        format = "url";
     }
 
-    if (APPLICATION->settings()->get("AutoCopyOfflineSkinCommand").toBool() && !cmd.isEmpty()) {
+    QString textToCopy;
+    if (!url.isEmpty()) {
+        if (format == "skin_url") {
+            textToCopy = QString("/skin %1").arg(url);
+        } else if (format == "skin_url_model") {
+            textToCopy = QString("/skin url %1 %2").arg(url, model == "slim" ? "slim" : "classic");
+        } else if (format == "skin_set") {
+            textToCopy = QString("/skin set %1").arg(url);
+        } else {
+            // "url" (default: direct URL link)
+            textToCopy = url;
+        }
+    }
+
+    if (APPLICATION->settings()->get("AutoCopyOfflineSkinCommand").toBool() && !textToCopy.isEmpty()) {
         auto* clipboard = QGuiApplication::clipboard();
         if (clipboard) {
-            clipboard->setText(cmd);
+            clipboard->setText(textToCopy);
         }
-        emit logLine(QString("[Offline Skin] Command copied to clipboard: %1 (paste in server chat on SkinsRestorer servers)").arg(cmd),
+        emit logLine(QString("[Offline Skin] Skin URL copied to clipboard: %1 (for server sharing)").arg(textToCopy),
                      MessageLevel::Launcher);
     } else {
         emit logLine(QString("[Offline Skin] Applied offline skin for player %1 (Singleplayer & LocalSkin)").arg(playerName),

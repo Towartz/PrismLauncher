@@ -111,10 +111,23 @@ SkinManageDialog::SkinManageDialog(QWidget* parent, MinecraftAccountPtr acct)
     m_ui->capeBox->setVisible(!isOffline);
     m_ui->serverSharingBox->setVisible(isOffline);
     if (isOffline) {
+        m_ui->skinFormatCombo->addItem(tr("Direct URL Only (Universal)"), "url");
+        m_ui->skinFormatCombo->addItem(tr("/skin <url>"), "skin_url");
+        m_ui->skinFormatCombo->addItem(tr("/skin url <url> [model]"), "skin_url_model");
+        m_ui->skinFormatCombo->addItem(tr("/skin set <url>"), "skin_set");
+
+        QString currentFormat = APPLICATION->settings()->get("OfflineSkinCopyFormat").toString();
+        int formatIndex = m_ui->skinFormatCombo->findData(currentFormat);
+        if (formatIndex >= 0) {
+            m_ui->skinFormatCombo->setCurrentIndex(formatIndex);
+        }
+
         m_ui->autoCopyLaunchCB->setChecked(APPLICATION->settings()->get("AutoCopyOfflineSkinCommand").toBool());
         connect(m_ui->autoCopyLaunchCB, &QCheckBox::toggled, this, &SkinManageDialog::on_autoCopyLaunchCB_toggled);
         connect(m_ui->copyCmdBtn, &QPushButton::clicked, this, &SkinManageDialog::on_copyCmdBtn_clicked);
         connect(m_ui->uploadCloudBtn, &QPushButton::clicked, this, &SkinManageDialog::on_uploadCloudBtn_clicked);
+        connect(m_ui->serverCmdLine, &QLineEdit::textEdited, this, &SkinManageDialog::on_serverCmdLine_textEdited);
+        connect(m_ui->skinFormatCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SkinManageDialog::on_skinFormatCombo_currentIndexChanged);
         updateServerCommand();
     }
 
@@ -332,7 +345,10 @@ void SkinManageDialog::accept()
             reject();
             return;
         }
-        QString url = skin->getURL();
+        QString url = m_ui->serverCmdLine->text().trimmed();
+        if (url.isEmpty()) {
+            url = skin->getURL();
+        }
         if (url.isEmpty()) {
             url = path;
         }
@@ -651,40 +667,84 @@ void SkinManageDialog::updateServerCommand()
     }
 
     QString url = skin->getURL();
-    QString model = skin->getModel() == SkinModel::SLIM ? "slim" : "classic";
-    QString cmd;
+    if (m_ui->serverCmdLine->text() != url) {
+        m_ui->serverCmdLine->setText(url);
+    }
 
-    if (!url.isEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
-        cmd = QString("/skin url %1 %2").arg(url, model);
+    bool hasHttpUrl = (!url.isEmpty() && (url.startsWith("http://") || url.startsWith("https://")));
+    if (hasHttpUrl) {
         m_ui->uploadCloudBtn->setEnabled(false);
         m_ui->uploadCloudBtn->setText(tr("Uploaded"));
-    } else if (!url.isEmpty() && !url.contains("/") && !url.contains("\\")) {
-        cmd = QString("/skin %1").arg(url);
-        m_ui->uploadCloudBtn->setEnabled(true);
-        m_ui->uploadCloudBtn->setText(tr("Upload to Cloud"));
     } else {
-        cmd = tr("Upload to Cloud to generate /skin URL");
         m_ui->uploadCloudBtn->setEnabled(true);
         m_ui->uploadCloudBtn->setText(tr("Upload to Cloud"));
     }
 
-    m_ui->serverCmdLine->setText(cmd);
-    m_ui->copyCmdBtn->setEnabled(cmd.startsWith("/skin"));
+    m_ui->copyCmdBtn->setEnabled(!m_ui->serverCmdLine->text().trimmed().isEmpty());
+}
+
+QString SkinManageDialog::getFormattedOutput() const
+{
+    QString url = m_ui->serverCmdLine->text().trimmed();
+    if (url.isEmpty()) {
+        return {};
+    }
+
+    QString format = m_ui->skinFormatCombo->currentData().toString();
+    if (format.isEmpty()) {
+        format = "url";
+    }
+
+    auto* skin = const_cast<SkinManageDialog*>(this)->getSelectedSkin();
+    QString model = (skin && skin->getModel() == SkinModel::SLIM) ? "slim" : "classic";
+
+    if (format == "skin_url") {
+        return QString("/skin %1").arg(url);
+    } else if (format == "skin_url_model") {
+        return QString("/skin url %1 %2").arg(url, model);
+    } else if (format == "skin_set") {
+        return QString("/skin set %1").arg(url);
+    } else {
+        // "url" (Direct URL only)
+        return url;
+    }
+}
+
+void SkinManageDialog::on_serverCmdLine_textEdited(const QString& text)
+{
+    if (auto* skin = getSelectedSkin(); skin) {
+        skin->setURL(text.trimmed());
+        m_list.save();
+    }
+    m_ui->copyCmdBtn->setEnabled(!text.trimmed().isEmpty());
+    bool isHttp = text.trimmed().startsWith("http://") || text.trimmed().startsWith("https://");
+    m_ui->uploadCloudBtn->setEnabled(!isHttp);
+    m_ui->uploadCloudBtn->setText(isHttp ? tr("Uploaded") : tr("Upload to Cloud"));
+}
+
+void SkinManageDialog::on_skinFormatCombo_currentIndexChanged(int /*index*/)
+{
+    QString format = m_ui->skinFormatCombo->currentData().toString();
+    APPLICATION->settings()->set("OfflineSkinCopyFormat", format);
 }
 
 void SkinManageDialog::on_copyCmdBtn_clicked()
 {
-    QString cmd = m_ui->serverCmdLine->text();
-    if (!cmd.startsWith("/skin")) {
+    QString text = getFormattedOutput();
+    if (text.isEmpty()) {
         return;
     }
     auto* clipboard = QGuiApplication::clipboard();
     if (clipboard) {
-        clipboard->setText(cmd);
-        CustomMessageBox::selectable(this, tr("Command Copied"),
-                                     tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers running SkinsRestorer.").arg(cmd),
-                                     QMessageBox::Information)
-            ->exec();
+        clipboard->setText(text);
+        QString format = m_ui->skinFormatCombo->currentData().toString();
+        QString msg;
+        if (format == "url") {
+            msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.").arg(text);
+        } else {
+            msg = tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers.").arg(text);
+        }
+        CustomMessageBox::selectable(this, tr("Copied to Clipboard"), msg, QMessageBox::Information)->exec();
     }
 }
 
@@ -710,9 +770,10 @@ void SkinManageDialog::on_uploadCloudBtn_clicked()
         QString url = *result;
         skin->setURL(url);
         m_list.save();
+        m_ui->serverCmdLine->setText(url);
         updateServerCommand();
         CustomMessageBox::selectable(this, tr("Upload Succeeded"),
-                                     tr("Skin uploaded to Mineskin (Mojang texture):\n%1\n\nThe /skin command is now ready!").arg(url),
+                                     tr("Skin uploaded to Mineskin (Mojang texture):\n%1\n\nThe skin URL is now ready to copy!").arg(url),
                                      QMessageBox::Information)
             ->exec();
     } else {
@@ -724,9 +785,10 @@ void SkinManageDialog::on_uploadCloudBtn_clicked()
             QString url = *catResult;
             skin->setURL(url);
             m_list.save();
+            m_ui->serverCmdLine->setText(url);
             updateServerCommand();
             CustomMessageBox::selectable(this, tr("Upload Succeeded"),
-                                         tr("Skin uploaded to host:\n%1\n\nThe /skin command is now ready!").arg(url),
+                                         tr("Skin uploaded to host:\n%1\n\nThe skin URL is now ready to copy!").arg(url),
                                          QMessageBox::Information)
                 ->exec();
         } else {
