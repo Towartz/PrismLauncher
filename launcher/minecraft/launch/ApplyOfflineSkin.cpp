@@ -64,82 +64,74 @@ void ApplyOfflineSkin::executeTask()
 
 void ApplyOfflineSkin::applyCustomSkinLoader(const QString& gameDir, const QString& playerName, const QString& model)
 {
-    try {
-        const QString cslSkinsDir = FS::PathCombine(gameDir, "CustomSkinLoader", "LocalSkin", "skins");
-        FS::ensureFolderPathExists(cslSkinsDir);
+    const QString cslSkinsDir = FS::PathCombine(gameDir, "CustomSkinLoader/LocalSkin/skins");
+    FS::ensureFolderPathExists(cslSkinsDir);
 
-        // Standard CustomSkinLoader skin file
-        const QString skinPath = FS::PathCombine(cslSkinsDir, playerName + ".png");
-        FS::write(skinPath, m_session->skin_data);
+    // Standard CustomSkinLoader skin file
+    const QString skinPath = FS::PathCombine(cslSkinsDir, playerName + ".png");
+    FS::write(skinPath, m_session->skin_data);
 
-        // CustomSkinLoader json model descriptor
-        QJsonObject json;
-        json["model"] = (model == "slim" ? "slim" : "default");
-        const QString jsonPath = FS::PathCombine(cslSkinsDir, playerName + ".json");
-        FS::write(jsonPath, Json::toText(json));
+    // CustomSkinLoader json model descriptor
+    QJsonObject json;
+    json["model"] = (model == "slim" ? "slim" : "default");
+    const QString jsonPath = FS::PathCombine(cslSkinsDir, playerName + ".json");
+    FS::write(jsonPath, Json::toText(json));
 
-        // Fallback file suffix for older CSL builds
-        const QString suffixPath = FS::PathCombine(cslSkinsDir, playerName + (model == "slim" ? ".slim.png" : ".classic.png"));
-        FS::write(suffixPath, m_session->skin_data);
-    } catch (const FS::FileSystemException& e) {
-        qWarning() << "ApplyOfflineSkin: Failed to write CustomSkinLoader files:" << e.what();
-    }
+    // Fallback file suffix for older CSL builds
+    const QString suffixPath = FS::PathCombine(cslSkinsDir, playerName + (model == "slim" ? ".slim.png" : ".classic.png"));
+    FS::write(suffixPath, m_session->skin_data);
 }
 
-void ApplyOfflineSkin::applyResourcePack(const QString& gameDir, const QString& playerName, const QString& model)
+void ApplyOfflineSkin::applyResourcePack(const QString& gameDir, const QString& playerName, const QString& /*model*/)
 {
-    try {
-        const QString packDir = FS::PathCombine(gameDir, "resourcepacks", "PrismOfflineSkin");
-        FS::ensureFolderPathExists(packDir);
+    const QString packDir = FS::PathCombine(gameDir, "resourcepacks/PrismOfflineSkin");
+    FS::ensureFolderPathExists(packDir);
 
-        // Generate pack.mcmeta
-        QJsonObject packObj;
-        packObj["pack_format"] = 15;
+    // Generate pack.mcmeta
+    QJsonObject packObj;
+    packObj["pack_format"] = 15;
 
-        QJsonObject supportedFormats;
-        supportedFormats["min_inclusive"] = 1;
-        supportedFormats["max_inclusive"] = 99;
-        packObj["supported_formats"] = supportedFormats;
-        packObj["description"] = QString("Prism Launcher Offline Skin for %1").arg(playerName);
+    QJsonObject supportedFormats;
+    supportedFormats["min_inclusive"] = 1;
+    supportedFormats["max_inclusive"] = 99;
+    packObj["supported_formats"] = supportedFormats;
+    packObj["description"] = QString("Prism Launcher Offline Skin for %1").arg(playerName);
 
-        QJsonObject rootObj;
-        rootObj["pack"] = packObj;
+    QJsonObject rootObj;
+    rootObj["pack"] = packObj;
 
-        const QString metaPath = FS::PathCombine(packDir, "pack.mcmeta");
-        FS::write(metaPath, Json::toText(rootObj));
+    const QString metaPath = FS::PathCombine(packDir, "pack.mcmeta");
+    FS::write(metaPath, Json::toText(rootObj));
 
-        // Create texture directories
-        const QString wideDir = FS::PathCombine(packDir, "assets", "minecraft", "textures", "entity", "player", "wide");
-        const QString slimDir = FS::PathCombine(packDir, "assets", "minecraft", "textures", "entity", "player", "slim");
-        const QString entityDir = FS::PathCombine(packDir, "assets", "minecraft", "textures", "entity");
-        const QString mobDir = FS::PathCombine(packDir, "mob");
+    // Create texture directories
+    const QString wideDir = FS::PathCombine(packDir, "assets/minecraft/textures/entity/player/wide");
+    const QString slimDir = FS::PathCombine(packDir, "assets/minecraft/textures/entity/player/slim");
+    const QString entityDir = FS::PathCombine(packDir, "assets/minecraft/textures/entity");
+    const QString mobDir = FS::PathCombine(packDir, "mob");
 
-        FS::ensureFolderPathExists(wideDir);
-        FS::ensureFolderPathExists(slimDir);
-        FS::ensureFolderPathExists(entityDir);
-        FS::ensureFolderPathExists(mobDir);
+    FS::ensureFolderPathExists(wideDir);
+    FS::ensureFolderPathExists(slimDir);
+    FS::ensureFolderPathExists(entityDir);
+    FS::ensureFolderPathExists(mobDir);
 
-        // Modern wide (classic) player models
-        const QStringList wideModels = { "steve.png", "kai.png", "sunny.png", "zuri.png" };
-        for (const auto& f : wideModels) {
-            FS::write(FS::PathCombine(wideDir, f), m_session->skin_data);
-        }
-
-        // Modern slim player models
-        const QStringList slimModels = { "alex.png", "ari.png", "efe.png", "makena.png", "noor.png" };
-        for (const auto& f : slimModels) {
-            FS::write(FS::PathCombine(slimDir, f), m_session->skin_data);
-        }
-
-        // Legacy / 1.8-1.19.2 paths
-        FS::write(FS::PathCombine(entityDir, "steve.png"), m_session->skin_data);
-        FS::write(FS::PathCombine(entityDir, "alex.png"), m_session->skin_data);
-
-        // Pre-1.6 / alpha / beta path
-        FS::write(FS::PathCombine(mobDir, "char.png"), m_session->skin_data);
-    } catch (const FS::FileSystemException& e) {
-        qWarning() << "ApplyOfflineSkin: Failed to generate dynamic resource pack:" << e.what();
+    // Modern wide (classic) player models
+    const QStringList wideModels = { "steve.png", "kai.png", "sunny.png", "zuri.png" };
+    for (const auto& f : wideModels) {
+        FS::write(FS::PathCombine(wideDir, f), m_session->skin_data);
     }
+
+    // Modern slim player models
+    const QStringList slimModels = { "alex.png", "ari.png", "efe.png", "makena.png", "noor.png" };
+    for (const auto& f : slimModels) {
+        FS::write(FS::PathCombine(slimDir, f), m_session->skin_data);
+    }
+
+    // Legacy / 1.8-1.19.2 paths
+    FS::write(FS::PathCombine(entityDir, "steve.png"), m_session->skin_data);
+    FS::write(FS::PathCombine(entityDir, "alex.png"), m_session->skin_data);
+
+    // Pre-1.6 / alpha / beta path
+    FS::write(FS::PathCombine(mobDir, "char.png"), m_session->skin_data);
 }
 
 void ApplyOfflineSkin::ensureResourcePackEnabled(const QString& gameDir)
@@ -150,11 +142,7 @@ void ApplyOfflineSkin::ensureResourcePackEnabled(const QString& gameDir)
     if (!QFile::exists(optionsPath)) {
         // Create initial options.txt with the pack enabled
         QString content = QString("resourcePacks:[\"vanilla\",%1]\n").arg(packEntry);
-        try {
-            FS::write(optionsPath, content.toUtf8());
-        } catch (const FS::FileSystemException& e) {
-            qWarning() << "ApplyOfflineSkin: Failed to create options.txt:" << e.what();
-        }
+        FS::write(optionsPath, content.toUtf8());
         return;
     }
 
