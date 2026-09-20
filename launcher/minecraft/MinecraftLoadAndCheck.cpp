@@ -17,9 +17,24 @@ void MinecraftLoadAndCheck::executeTask()
             m_inst->settings()->set("JavaPath", "");
         }
     }
+    loadProfile();
+}
+
+void MinecraftLoadAndCheck::loadProfile()
+{
+    auto* components = m_inst->getPackProfile();
     if (auto result = components->reload(m_netmode); !result) {
-        emitFailed(result.error());
-        return;
+        if (m_netmode == Net::Mode::Online) {
+            qWarning() << "Online metadata reload failed, falling back to offline mode:" << result.error();
+            m_netmode = Net::Mode::Offline;
+            if (auto offlineResult = components->reload(m_netmode); !offlineResult) {
+                emitFailed(offlineResult.error());
+                return;
+            }
+        } else {
+            emitFailed(result.error());
+            return;
+        }
     }
     m_task = components->getCurrentTask();
 
@@ -28,7 +43,15 @@ void MinecraftLoadAndCheck::executeTask()
         return;
     }
     connect(m_task.get(), &Task::succeeded, this, &MinecraftLoadAndCheck::emitSucceeded);
-    connect(m_task.get(), &Task::failed, this, &MinecraftLoadAndCheck::emitFailed);
+    connect(m_task.get(), &Task::failed, this, [this](const QString& reason) {
+        if (m_netmode == Net::Mode::Online) {
+            qWarning() << "Online component update task failed, falling back to offline mode:" << reason;
+            m_netmode = Net::Mode::Offline;
+            loadProfile();
+            return;
+        }
+        emitFailed(reason);
+    });
     connect(m_task.get(), &Task::aborted, this, &MinecraftLoadAndCheck::emitAborted);
     propagateFromOther(m_task.get());
 }

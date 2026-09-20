@@ -24,27 +24,36 @@ void AssetUpdateTask::executeTask()
     auto assets = profile->getMinecraftAssets();
     QUrl indexUrl = assets->url;
     QString localPath = assets->id + ".json";
-    auto job = makeShared<NetJob>(tr("Asset index for %1").arg(m_inst->name()), APPLICATION->network());
 
     auto metacache = APPLICATION->metacache();
     auto entry = metacache->resolveEntry("asset_indexes", localPath);
-    entry->setStale(true);
-    auto hexSha1 = assets->sha1.toLatin1();
-    qDebug() << "Asset index SHA1:" << hexSha1;
-    auto dl = Net::ApiRequest::makeCached(indexUrl, entry);
-    dl->addValidator(new Net::ChecksumValidator(QCryptographicHash::Sha1, assets->sha1));
-    job->addNetAction(dl);
 
-    downloadJob.reset(job);
+    QString asset_fname = "assets/indexes/" + assets->id + ".json";
+    bool needDownload = entry->isStale() || !QFile::exists(asset_fname);
 
-    connect(downloadJob.get(), &NetJob::succeeded, this, &AssetUpdateTask::assetIndexFinished);
-    connect(downloadJob.get(), &NetJob::failed, this, &AssetUpdateTask::assetIndexFailed);
-    connect(downloadJob.get(), &NetJob::aborted, this, &AssetUpdateTask::emitAborted);
-    connect(downloadJob.get(), &NetJob::progress, this, &AssetUpdateTask::progress);
-    connect(downloadJob.get(), &NetJob::stepProgress, this, &AssetUpdateTask::propagateStepProgress);
+    if (needDownload) {
+        auto job = makeShared<NetJob>(tr("Asset index for %1").arg(m_inst->name()), APPLICATION->network());
+        auto hexSha1 = assets->sha1.toLatin1();
+        qDebug() << "Asset index SHA1:" << hexSha1;
+        Net::Request::Options options = Net::Request::Option::MakeEternal;
+        auto dl = Net::ApiRequest::makeCached(indexUrl, entry, options);
+        dl->addValidator(new Net::ChecksumValidator(QCryptographicHash::Sha1, assets->sha1));
+        job->addNetAction(dl);
 
-    qDebug() << "Starting asset index download for" << m_inst->name();
-    downloadJob->start();
+        downloadJob.reset(job);
+
+        connect(downloadJob.get(), &NetJob::succeeded, this, &AssetUpdateTask::assetIndexFinished);
+        connect(downloadJob.get(), &NetJob::failed, this, &AssetUpdateTask::assetIndexFailed);
+        connect(downloadJob.get(), &NetJob::aborted, this, &AssetUpdateTask::emitAborted);
+        connect(downloadJob.get(), &NetJob::progress, this, &AssetUpdateTask::progress);
+        connect(downloadJob.get(), &NetJob::stepProgress, this, &AssetUpdateTask::propagateStepProgress);
+
+        qDebug() << "Starting asset index download for" << m_inst->name();
+        downloadJob->start();
+    } else {
+        qDebug() << "Asset index already cached for" << m_inst->name();
+        assetIndexFinished();
+    }
 }
 
 bool AssetUpdateTask::canAbort() const
@@ -93,7 +102,16 @@ void AssetUpdateTask::assetIndexFinished()
 
 void AssetUpdateTask::assetIndexFailed(QString reason)
 {
-    qDebug() << m_inst->name() << ": Failed asset index download";
+    qDebug() << m_inst->name() << ": Failed asset index download:" << reason;
+    auto components = m_inst->getPackProfile();
+    auto profile = components->getProfile();
+    auto assets = profile->getMinecraftAssets();
+    QString asset_fname = "assets/indexes/" + assets->id + ".json";
+    if (QFile::exists(asset_fname)) {
+        qWarning() << "Failed to download asset index, but local file exists. Continuing with cached index.";
+        assetIndexFinished();
+        return;
+    }
     emitFailed(tr("Failed to download the assets index:\n%1").arg(reason));
 }
 

@@ -1404,7 +1404,7 @@ void MainWindow::on_actionManageSkins_triggered()
 {
     auto account = APPLICATION->accounts()->defaultAccount();
 
-    if (account && (account->accountType() == AccountType::MSA) && !account->isActive()) {
+    if (account && !account->isActive()) {
         SkinManageDialog dialog(this, account);
         dialog.exec();
     }

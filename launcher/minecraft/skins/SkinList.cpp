@@ -370,8 +370,11 @@ void SkinList::save()
 int SkinList::getSelectedAccountSkin()
 {
     const auto& skin = m_acct->accountData()->minecraftProfile.skin;
+    if (skin.url.isEmpty()) {
+        return -1;
+    }
     for (int i = 0; i < m_skinList.count(); i++) {
-        if (m_skinList[i].getURL() == skin.url) {
+        if (m_skinList[i].getURL() == skin.url || m_skinList[i].getPath() == skin.url) {
             return i;
         }
     }

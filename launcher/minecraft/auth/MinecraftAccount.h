@@ -101,6 +101,9 @@ class MinecraftAccount : public QObject, public Usable {
 
     shared_qobject_ptr<AuthFlow> currentTask();
 
+    void setSkin(const QByteArray& skinData, const QString& model, const QString& url);
+    void clearSkin();
+
    public: /* queries */
     QString internalId() const { return data.internalId; }
 

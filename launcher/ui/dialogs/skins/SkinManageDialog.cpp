@@ -310,6 +310,19 @@ void SkinManageDialog::accept()
         return;
     }
 
+    if (m_acct->accountType() == AccountType::Offline) {
+        QFile skinFile(path);
+        if (!skinFile.open(QIODevice::ReadOnly)) {
+            CustomMessageBox::selectable(this, tr("Skin Apply"), tr("Failed to open skin file!"), QMessageBox::Warning)->exec();
+            reject();
+            return;
+        }
+        m_acct->setSkin(skinFile.readAll(), skin->getModelString(), path);
+        skin->setURL(path);
+        QDialog::accept();
+        return;
+    }
+
     skinUpload->addNetAction(makeSkinUploadRequest(m_acct->accessToken(), skin->getPath(), skin->getModelString()));
 
     auto selectedCape = skin->getCapeId();
@@ -329,6 +342,12 @@ void SkinManageDialog::accept()
 
 void SkinManageDialog::on_resetBtn_clicked()
 {
+    if (m_acct->accountType() == AccountType::Offline) {
+        m_acct->clearSkin();
+        QDialog::accept();
+        return;
+    }
+
     ProgressDialog prog(this);
     NetJob::Ptr skinReset{ new NetJob(tr("Reset skin"), APPLICATION->network(), 1) };
     skinReset->addNetAction(makeSkinDeleteRequest(m_acct->accessToken()));

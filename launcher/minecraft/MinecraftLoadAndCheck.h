@@ -32,6 +32,8 @@ class MinecraftLoadAndCheck : public Task {
     bool abort() override;
 
    private:
+    void loadProfile();
+
     MinecraftInstance* m_inst = nullptr;
     Task::Ptr m_task;
     Net::Mode m_netmode;

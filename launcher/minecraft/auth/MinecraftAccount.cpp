@@ -39,6 +39,7 @@
 
 #include <QColor>
 #include <QCryptographicHash>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -105,7 +106,7 @@ QPixmap MinecraftAccount::getFace(int width, int height) const
 {
     QPixmap skinTexture;
     if (!skinTexture.loadFromData(data.minecraftProfile.skin.data, "PNG")) {
-        return QPixmap();
+        return QIcon(":/icons/multimc/scalable/instances/steve.svg").pixmap(width, height);
     }
     QPixmap skin = QPixmap(8, 8);
     skin.fill(QColorConstants::Transparent);
@@ -113,6 +114,21 @@ QPixmap MinecraftAccount::getFace(int width, int height) const
     painter.drawPixmap(0, 0, skinTexture.copy(8, 8, 8, 8));
     painter.drawPixmap(0, 0, skinTexture.copy(40, 8, 8, 8));
     return skin.scaled(width, height, Qt::KeepAspectRatio);
+}
+
+void MinecraftAccount::setSkin(const QByteArray& skinData, const QString& model, const QString& url)
+{
+    data.minecraftProfile.skin.data = skinData;
+    data.minecraftProfile.skin.variant = model;
+    data.minecraftProfile.skin.url = url;
+    emit changed();
+}
+
+void MinecraftAccount::clearSkin()
+{
+    data.minecraftProfile.skin.data.clear();
+    data.minecraftProfile.skin.url.clear();
+    emit changed();
 }
 
 shared_qobject_ptr<AuthFlow> MinecraftAccount::login(bool useDeviceCode)
