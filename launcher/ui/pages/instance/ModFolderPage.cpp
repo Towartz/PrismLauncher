@@ -98,6 +98,12 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     updateMenu->addAction(ui->actionResetItemMetadata);
     connect(ui->actionResetItemMetadata, &QAction::triggered, this, &ModFolderPage::deleteModMetadata);
 
+    auto* toggleIgnoreAction = updateMenu->addAction(tr("Toggle Ignore Updates for Selected"));
+    connect(toggleIgnoreAction, &QAction::triggered, this, &ModFolderPage::toggleIgnoreSelectedMods);
+
+    auto* clearIgnoredAction = updateMenu->addAction(tr("Clear Ignored Updates List"));
+    connect(clearIgnoredAction, &QAction::triggered, this, &ModFolderPage::clearIgnoredMods);
+
     ui->actionUpdateItem->setMenu(updateMenu);
 
     ui->actionChangeVersion->setToolTip(tr("Change a mod's version."));
@@ -109,6 +115,7 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     ui->actionExportMetadata->setToolTip(tr("Export mod's metadata to text."));
     connect(ui->actionExportMetadata, &QAction::triggered, this, &ModFolderPage::exportModMetadata);
     ui->actionsToolbar->insertActionAfter(ui->actionViewHomepage, ui->actionExportMetadata);
+    ui->actionsToolbar->insertActionAfter(ui->actionExportMetadata, toggleIgnoreAction);
 
     ui->actionsToolbar->insertActionAfter(ui->actionViewFolder, ui->actionViewConfigs);
 }
@@ -433,4 +440,44 @@ inline bool ModFolderPage::handleNoModLoader()
     // Nothing happens the dialog is already closing
     // returning true so the caller doesn't go and continue with opening it's dialog without a mod loader
     return true;
+}
+
+void ModFolderPage::toggleIgnoreSelectedMods()
+{
+    if (!m_instance) {
+        return;
+    }
+    auto selection = m_filterModel->mapSelectionToSource(ui->treeView->selectionModel()->selection()).indexes();
+    auto selectedMods = m_model->selectedResources(selection);
+    if (selectedMods.isEmpty()) {
+        return;
+    }
+
+    auto ignored = m_instance->settings()->get("IgnoredUpdateResources").toStringList();
+    bool anyAdded = false;
+    for (auto* mod : selectedMods) {
+        if (!mod) continue;
+        auto fileName = mod->fileinfo().fileName();
+        if (ignored.contains(fileName)) {
+            ignored.removeAll(fileName);
+        } else {
+            ignored.append(fileName);
+            anyAdded = true;
+        }
+    }
+    m_instance->settings()->set("IgnoredUpdateResources", ignored);
+    if (anyAdded) {
+        CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Selected mod(s) will be skipped during future update checks."))->exec();
+    } else {
+        CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Selected mod(s) were removed from the ignore list."))->exec();
+    }
+}
+
+void ModFolderPage::clearIgnoredMods()
+{
+    if (!m_instance) {
+        return;
+    }
+    m_instance->settings()->set("IgnoredUpdateResources", QStringList());
+    CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Ignored updates list has been cleared."))->exec();
 }

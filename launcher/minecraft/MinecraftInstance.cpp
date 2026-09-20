@@ -274,6 +274,7 @@ void MinecraftInstance::loadSpecificSettings()
     // Join server on launch, this does not have a global override
     m_settings->registerSetting("OverrideModDownloadLoaders", false);
     m_settings->registerSetting("ModDownloadLoaders", "[]");
+    m_settings->registerSetting("IgnoredUpdateResources", QVariant(QStringList()));
 
     qDebug() << "Instance-type specific settings were loaded!";
 

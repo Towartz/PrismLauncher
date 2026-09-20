@@ -71,6 +71,21 @@ ResourceUpdateDialog::ResourceUpdateDialog(QWidget* parent,
 
 void ResourceUpdateDialog::checkCandidates()
 {
+    // Filter out ignored resources
+    if (m_instance) {
+        const auto ignored = m_instance->settings()->get("IgnoredUpdateResources").toStringList();
+        if (!ignored.isEmpty()) {
+            m_candidates.removeIf([&ignored](Resource* candidate) {
+                if (!candidate) {
+                    return true;
+                }
+                const auto fileName = candidate->fileinfo().fileName();
+                const auto name = candidate->name();
+                return ignored.contains(fileName) || ignored.contains(name);
+            });
+        }
+    }
+
     // Ensure mods have valid metadata
     auto wentWell = ensureMetadata();
     if (!wentWell) {
@@ -90,12 +105,24 @@ void ResourceUpdateDialog::checkCandidates()
         ScrollMessageBox messageDialog(m_parent, tr("Metadata generation failed"),
                                        tr("Could not generate metadata for the following resources:<br>"
                                           "Do you wish to proceed without those resources?"),
-                                       text);
+                                       text, tr("Remember and skip these resources in future update checks"));
         messageDialog.setModal(true);
         if (messageDialog.exec() == QDialog::Rejected) {
             m_aborted = true;
             QMetaObject::invokeMethod(this, "reject", Qt::QueuedConnection);
             return;
+        }
+
+        if (messageDialog.isOptionChecked() && m_instance) {
+            auto ignored = m_instance->settings()->get("IgnoredUpdateResources").toStringList();
+            for (const auto& failed : m_failedMetadata) {
+                const auto& mod = std::get<0>(failed);
+                const auto fileName = mod->fileinfo().fileName();
+                if (!ignored.contains(fileName)) {
+                    ignored.append(fileName);
+                }
+            }
+            m_instance->settings()->set("IgnoredUpdateResources", ignored);
         }
     }
 
