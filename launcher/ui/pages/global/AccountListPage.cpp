@@ -51,6 +51,7 @@
 #include "ui/dialogs/MSALoginDialog.h"
 
 #include "Application.h"
+#include "settings/SettingsObject.h"
 
 AccountListPage::AccountListPage(QWidget* parent) : QMainWindow(parent), ui(new Ui::AccountListPage)
 {
