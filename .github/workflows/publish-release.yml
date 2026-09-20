@@ -119,13 +119,17 @@ jobs:
           files: release_assets/*
           token: ${{ secrets.GITHUB_TOKEN }}
           body: |
-            ### Prism Launcher (Offline Mode Enabled)
+            ### Prism Launcher (Offline Mode & Skin Visibility Enabled)
 
-            This release allows offline account creation and gameplay without requiring Minecraft Microsoft account ownership.
+            This release allows offline account creation, offline skins visibility (singleplayer, LAN, CustomSkinLoader, and SkinsRestorer servers), and gameplay without requiring Minecraft Microsoft account ownership.
 
             #### Key Features:
+            - **Offline Account Skin Visibility (Self & LAN)**: Offline accounts now have full skin visibility in singleplayer and LAN worlds via dynamic runtime resource packs (classic, slim, and 1.19.3+ format support).
+            - **CustomSkinLoader Integration**: Automatically extracts and syncs offline player skins into `CustomSkinLoader/LocalSkin/skins/<player>.png` on launch.
+            - **Server Skin Sharing (`/skin` Command)**: Integrated server sharing controls in the Skin Manager dialog and Account list with 1-click copy and auto-copy on launch for SkinsRestorer / offline servers.
+            - **Cloud Skin Upload**: Built-in 1-click skin upload to Mineskin (generating official `textures.minecraft.net` URLs) with Catbox fallback.
             - **Offline Mode Account Creation**: Directly create offline accounts via "Add Offline" without owning Minecraft on Microsoft.
             - **Optional Microsoft Sign-In**: Microsoft account login remains available for users who own the game on Microsoft.
-            - **Launch Controller Improvements**: Clean and robust launch flow without forcing demo mode.
+            - **Custom Update Server & Auto Incremental Versioning**: Automatic updates pointing directly to this repository.
 
             **Public Downloads:** Any user can download the installer or portable packages below without needing a GitHub account.
