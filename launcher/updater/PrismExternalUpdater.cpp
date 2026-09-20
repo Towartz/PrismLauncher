@@ -35,6 +35,8 @@
 #include "StringUtils.h"
 
 #include "BuildConfig.h"
+#include "Application.h"
+#include "settings/SettingsObject.h"
 
 #include "ui/dialogs/UpdateAvailableDialog.h"
 
@@ -59,7 +61,7 @@ PrismExternalUpdater::PrismExternalUpdater(QWidget* parent, const QString& appDi
     priv->dataDir = QDir(dataDir);
     auto settingsFile = priv->dataDir.absoluteFilePath("prismlauncher_update.cfg");
     priv->settings = std::make_unique<QSettings>(settingsFile, QSettings::Format::IniFormat);
-    priv->allowBeta = priv->settings->value("allow_beta", false).toBool();
+    priv->allowBeta = priv->settings->value("allow_beta", priv->settings->value("auto_beta", false)).toBool();
     priv->autoCheck = priv->settings->value("auto_check", true).toBool();
     bool intervalOk = false;
     // default once per day
@@ -116,8 +118,15 @@ void PrismExternalUpdater::checkForUpdates(bool triggeredByUser) const
     exeName = QString("bin/%1").arg(exeName);
 #endif
 
-    QStringList args = { "--check-only", "--dir", priv->dataDir.absolutePath(), "--debug" };
-    if (priv->allowBeta) {
+    QStringList args = { "--check-only", "--dir", priv->dataDir.absolutePath(), "--debug",
+                         "--prism-version", BuildConfig.printableVersionString() };
+    if (APPLICATION && APPLICATION->settings()) {
+        auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();
+        if (!updateRepo.isEmpty()) {
+            args.append({ "--update-url", updateRepo });
+        }
+    }
+    if (priv->allowBeta || BuildConfig.printableVersionString().contains('-')) {
         args.append("--pre-release");
     }
 
@@ -261,6 +270,7 @@ void PrismExternalUpdater::setUpdateCheckInterval(double seconds)
 void PrismExternalUpdater::setBetaAllowed(bool allowed)
 {
     priv->allowBeta = allowed;
+    priv->settings->setValue("allow_beta", allowed);
     priv->settings->setValue("auto_beta", allowed);
     priv->settings->sync();
 }
@@ -357,8 +367,15 @@ void PrismExternalUpdater::performUpdate(const QString& versionTag) const
     exeName = QString("bin/%1").arg(exeName);
 #endif
 
-    QStringList args = { "--dir", priv->dataDir.absolutePath(), "--install-version", versionTag };
-    if (priv->allowBeta) {
+    QStringList args = { "--dir", priv->dataDir.absolutePath(), "--install-version", versionTag,
+                         "--prism-version", BuildConfig.printableVersionString() };
+    if (APPLICATION && APPLICATION->settings()) {
+        auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();
+        if (!updateRepo.isEmpty()) {
+            args.append({ "--update-url", updateRepo });
+        }
+    }
+    if (priv->allowBeta || BuildConfig.printableVersionString().contains('-')) {
         args.append("--pre-release");
     }
 

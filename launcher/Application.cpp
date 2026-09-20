@@ -917,6 +917,9 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         // Custom Technic Client ID
         m_settings->registerSetting("TechnicClientID", "");
 
+        // Custom Update Repo Override
+        m_settings->registerSetting("UpdateRepoOverride", "");
+
         // Init page provider
         {
             m_globalSettingsProvider = std::make_unique<GenericPageProvider>(tr("Settings"));
@@ -2060,7 +2063,6 @@ void Application::triggerUpdateCheck()
 {
     if (m_updater) {
         qDebug() << "Checking for updates.";
-        m_updater->setBetaAllowed(false);  // There are no other channels than stable
         m_updater->checkForUpdates();
     } else {
         qDebug() << "Updater not available.";

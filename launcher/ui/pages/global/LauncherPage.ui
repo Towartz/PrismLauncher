@@ -250,6 +250,34 @@
             </property>
            </widget>
           </item>
+          <item row="2" column="0" colspan="2">
+           <widget class="QCheckBox" name="allowBetaCheckBox">
+            <property name="text">
+             <string>&amp;Include pre-releases and test builds</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <layout class="QHBoxLayout" name="horizontalLayout_updateRepo">
+            <item>
+             <widget class="QLabel" name="updateRepoLabel">
+              <property name="text">
+               <string>Update Repository:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="updateRepoLineEdit">
+              <property name="placeholderText">
+               <string>Default: https://github.com/Towartz/PrismLauncher</string>
+              </property>
+              <property name="clearButtonEnabled">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>

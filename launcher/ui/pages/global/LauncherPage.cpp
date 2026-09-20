@@ -227,6 +227,8 @@ void LauncherPage::applySettings()
     if (APPLICATION->updater()) {
         APPLICATION->updater()->setAutomaticallyChecksForUpdates(ui->autoUpdateCheckBox->isChecked());
         APPLICATION->updater()->setUpdateCheckInterval(ui->updateIntervalSpinBox->value() * 3600);
+        APPLICATION->updater()->setBetaAllowed(ui->allowBetaCheckBox->isChecked());
+        s->set("UpdateRepoOverride", ui->updateRepoLineEdit->text().trimmed());
     }
 
     s->set("MenuBarInsteadOfToolBar", ui->preferMenuBarCheckBox->isChecked());
@@ -297,6 +299,8 @@ void LauncherPage::loadSettings()
     if (APPLICATION->updater()) {
         ui->autoUpdateCheckBox->setChecked(APPLICATION->updater()->getAutomaticallyChecksForUpdates());
         ui->updateIntervalSpinBox->setValue(APPLICATION->updater()->getUpdateCheckInterval() / 3600);
+        ui->allowBetaCheckBox->setChecked(APPLICATION->updater()->getBetaAllowed());
+        ui->updateRepoLineEdit->setText(s->get("UpdateRepoOverride").toString());
     }
 
     ui->preferMenuBarCheckBox->setChecked(s->get("MenuBarInsteadOfToolBar").toBool());

@@ -18,7 +18,7 @@ on:
       prerelease:
         description: "Mark as pre-release"
         type: boolean
-        default: true
+        default: false
 
 jobs:
   publish:
