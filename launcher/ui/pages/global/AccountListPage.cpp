@@ -38,6 +38,8 @@
 #include "ui/dialogs/skins/SkinManageDialog.h"
 #include "ui_AccountListPage.h"
 
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QItemSelectionModel>
 #include <QMenu>
 #include <QPushButton>
@@ -225,6 +227,16 @@ void AccountListPage::updateButtonStates()
     ui->actionManageSkins->setEnabled(accountIsReady);
     ui->actionRefresh->setEnabled(accountIsReady && accountIsOnline);
 
+    bool hasOfflineSkin = false;
+    if (hasSelection) {
+        QModelIndex selected = selection.first();
+        MinecraftAccountPtr account = selected.data(AccountList::PointerRole).value<MinecraftAccountPtr>();
+        if (account && account->accountType() == AccountType::Offline) {
+            hasOfflineSkin = !account->accountData()->minecraftProfile.skin.data.isEmpty();
+        }
+    }
+    ui->actionCopySkinCommand->setEnabled(hasOfflineSkin);
+
     if (m_accounts->defaultAccount().get() == nullptr) {
         ui->actionNoDefault->setEnabled(false);
         ui->actionNoDefault->setChecked(true);
@@ -245,6 +257,42 @@ void AccountListPage::on_actionManageSkins_triggered()
         MinecraftAccountPtr account = selected.data(AccountList::PointerRole).value<MinecraftAccountPtr>();
         SkinManageDialog dialog(this, account);
         dialog.exec();
+        updateButtonStates();
+    }
+}
+
+void AccountListPage::on_actionCopySkinCommand_triggered()
+{
+    QModelIndexList selection = ui->listView->selectionModel()->selectedIndexes();
+    if (selection.size() > 0) {
+        QModelIndex selected = selection.first();
+        MinecraftAccountPtr account = selected.data(AccountList::PointerRole).value<MinecraftAccountPtr>();
+        if (!account) {
+            return;
+        }
+        const auto& skin = account->accountData()->minecraftProfile.skin;
+        QString cmd;
+        if (!skin.url.isEmpty() && (skin.url.startsWith("http://") || skin.url.startsWith("https://"))) {
+            cmd = QString("/skin url %1 %2").arg(skin.url, skin.variant == "slim" ? "slim" : "classic");
+        } else if (!skin.url.isEmpty() && !skin.url.contains("/") && !skin.url.contains("\\")) {
+            cmd = QString("/skin %1").arg(skin.url);
+        }
+
+        if (!cmd.isEmpty()) {
+            auto* clipboard = QGuiApplication::clipboard();
+            if (clipboard) {
+                clipboard->setText(cmd);
+                CustomMessageBox::selectable(this, tr("Command Copied"),
+                                             tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers running SkinsRestorer.").arg(cmd),
+                                             QMessageBox::Information)
+                    ->exec();
+            }
+        } else {
+            CustomMessageBox::selectable(this, tr("No Server URL"),
+                                         tr("This offline skin does not have a public server URL yet.\nPlease click 'Manage Skins' and use 'Upload to Cloud' to generate a /skin command."),
+                                         QMessageBox::Information)
+                    ->exec();
+        }
     }
 }
 

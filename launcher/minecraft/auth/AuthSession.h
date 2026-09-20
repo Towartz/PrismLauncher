@@ -25,6 +25,11 @@ struct AuthSession {
     QString user_type;
     // the actual launch mode for this session
     LaunchMode launchMode;
+
+    // skin information
+    QByteArray skin_data;
+    QString skin_model;
+    QString skin_url;
 };
 
 using AuthSessionPtr = std::shared_ptr<AuthSession>;

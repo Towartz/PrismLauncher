@@ -57,9 +57,13 @@ class SkinManageDialog : public QDialog, public SkinProvider {
     bool eventFilter(QObject* obj, QEvent* ev) override;
     void on_action_Rename_Skin_triggered(bool checked);
     void on_action_Delete_Skin_triggered(bool checked);
+    void on_copyCmdBtn_clicked();
+    void on_uploadCloudBtn_clicked();
+    void on_autoCopyLaunchCB_toggled(bool checked);
 
    private:
     void setupCapes();
+    void updateServerCommand();
 
    private:
     MinecraftAccountPtr m_acct;

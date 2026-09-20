@@ -55,6 +55,7 @@
 #include "launch/steps/QuitAfterGameStop.h"
 #include "launch/steps/TextPrint.h"
 
+#include "minecraft/launch/ApplyOfflineSkin.h"
 #include "minecraft/launch/AutoInstallJava.h"
 #include "minecraft/launch/ClaimAccount.h"
 #include "minecraft/launch/CreateGameFolders.h"
@@ -1241,6 +1242,11 @@ LaunchTask* MinecraftInstance::createLaunchTask(AuthSessionPtr session, Minecraf
     // reconstruct assets if needed
     {
         process->appendStep(makeShared<ReconstructAssets>(pptr));
+    }
+
+    // apply offline skin if offline account and skin data is available
+    if (session && session->user_type == "Offline" && !session->skin_data.isEmpty()) {
+        process->appendStep(makeShared<ApplyOfflineSkin>(pptr, session, this));
     }
 
     {

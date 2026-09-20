@@ -275,6 +275,10 @@ void MinecraftAccount::fillSession(AuthSessionPtr session)
         session->session = "-";
         session->access_token = "0";
     }
+
+    session->skin_data = data.minecraftProfile.skin.data;
+    session->skin_model = data.minecraftProfile.skin.variant;
+    session->skin_url = data.minecraftProfile.skin.url;
 }
 
 void MinecraftAccount::decrementUses()

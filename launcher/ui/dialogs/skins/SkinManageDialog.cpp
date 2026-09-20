@@ -22,7 +22,9 @@
 
 #include <FileSystem.h>
 #include <QAction>
+#include <QClipboard>
 #include <QDialog>
+#include "minecraft/skins/CloudSkinUpload.h"
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -105,6 +107,17 @@ SkinManageDialog::SkinManageDialog(QWidget* parent, MinecraftAccountPtr acct)
 
     setupCapes();
 
+    bool isOffline = m_acct->accountType() == AccountType::Offline;
+    m_ui->capeBox->setVisible(!isOffline);
+    m_ui->serverSharingBox->setVisible(isOffline);
+    if (isOffline) {
+        m_ui->autoCopyLaunchCB->setChecked(APPLICATION->settings()->get("AutoCopyOfflineSkinCommand").toBool());
+        connect(m_ui->autoCopyLaunchCB, &QCheckBox::toggled, this, &SkinManageDialog::on_autoCopyLaunchCB_toggled);
+        connect(m_ui->copyCmdBtn, &QPushButton::clicked, this, &SkinManageDialog::on_copyCmdBtn_clicked);
+        connect(m_ui->uploadCloudBtn, &QPushButton::clicked, this, &SkinManageDialog::on_uploadCloudBtn_clicked);
+        updateServerCommand();
+    }
+
     m_ui->listView->setCurrentIndex(m_list.index(m_list.getSelectedAccountSkin()));
 
     m_ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
@@ -155,6 +168,7 @@ void SkinManageDialog::selectionChanged(const QItemSelection& selected, [[maybe_
     m_ui->capeCombo->setCurrentIndex(m_capesIdx.value(skin->getCapeId()));
     m_ui->steveBtn->setChecked(skin->getModel() == SkinModel::CLASSIC);
     m_ui->alexBtn->setChecked(skin->getModel() == SkinModel::SLIM);
+    updateServerCommand();
 }
 
 void SkinManageDialog::delayed_scroll(QModelIndex modelIndex)
@@ -289,6 +303,7 @@ void SkinManageDialog::on_steveBtn_toggled(bool checked)
             m_skinPreviewLabel->setPixmap(
                 QPixmap::fromImage(skin->getPreview()).scaled(m_skinPreviewLabel->size(), Qt::KeepAspectRatio, Qt::FastTransformation));
         }
+        updateServerCommand();
     }
 }
 
@@ -317,8 +332,13 @@ void SkinManageDialog::accept()
             reject();
             return;
         }
-        m_acct->setSkin(skinFile.readAll(), skin->getModelString(), path);
-        skin->setURL(path);
+        QString url = skin->getURL();
+        if (url.isEmpty()) {
+            url = path;
+        }
+        m_acct->setSkin(skinFile.readAll(), skin->getModelString(), url);
+        skin->setURL(url);
+        m_list.save();
         QDialog::accept();
         return;
     }
@@ -344,6 +364,7 @@ void SkinManageDialog::on_resetBtn_clicked()
 {
     if (m_acct->accountType() == AccountType::Offline) {
         m_acct->clearSkin();
+        updateServerCommand();
         QDialog::accept();
         return;
     }
@@ -454,7 +475,11 @@ void SkinManageDialog::on_urlBtn_clicked()
     m_ui->urlLine->setText("");
     if (QFileInfo(path).suffix().isEmpty()) {
         QFile::rename(path, path + ".png");
+        path = path + ".png";
     }
+    s.setURL(url.toString());
+    m_list.updateSkin(&s);
+    updateServerCommand();
 }
 
 namespace {
@@ -578,6 +603,7 @@ void SkinManageDialog::on_userBtn_clicked()
         s.setCapeId(mcProfile.currentCape);
     }
     m_list.updateSkin(&s);
+    updateServerCommand();
 }
 
 void SkinManageDialog::resizeEvent(QResizeEvent* event)
@@ -610,3 +636,110 @@ QHash<QString, QImage> SkinManageDialog::capes()
 {
     return m_capes;
 }
+
+void SkinManageDialog::updateServerCommand()
+{
+    if (m_acct->accountType() != AccountType::Offline) {
+        return;
+    }
+    auto* skin = m_list.skin(m_selectedSkinKey);
+    if (!skin) {
+        m_ui->serverCmdLine->clear();
+        m_ui->copyCmdBtn->setEnabled(false);
+        m_ui->uploadCloudBtn->setEnabled(false);
+        return;
+    }
+
+    QString url = skin->getURL();
+    QString model = skin->getModel() == SkinModel::SLIM ? "slim" : "classic";
+    QString cmd;
+
+    if (!url.isEmpty() && (url.startsWith("http://") || url.startsWith("https://"))) {
+        cmd = QString("/skin url %1 %2").arg(url, model);
+        m_ui->uploadCloudBtn->setEnabled(false);
+        m_ui->uploadCloudBtn->setText(tr("Uploaded"));
+    } else if (!url.isEmpty() && !url.contains("/") && !url.contains("\\")) {
+        cmd = QString("/skin %1").arg(url);
+        m_ui->uploadCloudBtn->setEnabled(true);
+        m_ui->uploadCloudBtn->setText(tr("Upload to Cloud"));
+    } else {
+        cmd = tr("Upload to Cloud to generate /skin URL");
+        m_ui->uploadCloudBtn->setEnabled(true);
+        m_ui->uploadCloudBtn->setText(tr("Upload to Cloud"));
+    }
+
+    m_ui->serverCmdLine->setText(cmd);
+    m_ui->copyCmdBtn->setEnabled(cmd.startsWith("/skin"));
+}
+
+void SkinManageDialog::on_copyCmdBtn_clicked()
+{
+    QString cmd = m_ui->serverCmdLine->text();
+    if (!cmd.startsWith("/skin")) {
+        return;
+    }
+    auto* clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        clipboard->setText(cmd);
+        CustomMessageBox::selectable(this, tr("Command Copied"),
+                                     tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers running SkinsRestorer.").arg(cmd),
+                                     QMessageBox::Information)
+            ->exec();
+    }
+}
+
+void SkinManageDialog::on_uploadCloudBtn_clicked()
+{
+    auto* skin = m_list.skin(m_selectedSkinKey);
+    if (!skin) {
+        return;
+    }
+
+    QString path = skin->getPath();
+    if (!QFile::exists(path)) {
+        CustomMessageBox::selectable(this, tr("Upload Skin"), tr("Skin file does not exist!"), QMessageBox::Warning)->exec();
+        return;
+    }
+
+    ProgressDialog prog(this);
+    NetJob::Ptr job{ new NetJob(tr("Upload skin for server sharing"), APPLICATION->network(), 1) };
+    auto [req, result] = CloudSkinUpload::makeMineskinUpload(path, skin->getModelString());
+    job->addNetAction(req);
+
+    if (prog.execWithTask(job.get()) == QDialog::Accepted && result && !result->isEmpty()) {
+        QString url = *result;
+        skin->setURL(url);
+        m_list.save();
+        updateServerCommand();
+        CustomMessageBox::selectable(this, tr("Upload Succeeded"),
+                                     tr("Skin uploaded to Mineskin (Mojang texture):\n%1\n\nThe /skin command is now ready!").arg(url),
+                                     QMessageBox::Information)
+            ->exec();
+    } else {
+        // Try fallback to Catbox
+        NetJob::Ptr fallbackJob{ new NetJob(tr("Upload skin to image host"), APPLICATION->network(), 1) };
+        auto [catReq, catResult] = CloudSkinUpload::makeCatboxUpload(path);
+        fallbackJob->addNetAction(catReq);
+        if (prog.execWithTask(fallbackJob.get()) == QDialog::Accepted && catResult && !catResult->isEmpty()) {
+            QString url = *catResult;
+            skin->setURL(url);
+            m_list.save();
+            updateServerCommand();
+            CustomMessageBox::selectable(this, tr("Upload Succeeded"),
+                                         tr("Skin uploaded to host:\n%1\n\nThe /skin command is now ready!").arg(url),
+                                         QMessageBox::Information)
+                ->exec();
+        } else {
+            CustomMessageBox::selectable(this, tr("Upload Failed"),
+                                         tr("Failed to upload skin to public skin host. Please check your internet connection or try again later."),
+                                         QMessageBox::Warning)
+                ->exec();
+        }
+    }
+}
+
+void SkinManageDialog::on_autoCopyLaunchCB_toggled(bool checked)
+{
+    APPLICATION->settings()->set("AutoCopyOfflineSkinCommand", checked);
+}
+

@@ -17,7 +17,7 @@
    <item>
     <layout class="QHBoxLayout" name="mainHlLayout" stretch="3,8">
      <item>
-      <layout class="QVBoxLayout" name="selectedVLayout" stretch="2,1,3">
+      <layout class="QVBoxLayout" name="selectedVLayout">
        <item>
         <layout class="QVBoxLayout" name="skinLayout"/>
        </item>
@@ -79,6 +79,60 @@
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="serverSharingBox">
+         <property name="title">
+          <string>Server Sharing (/skin)</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_sharing">
+          <item>
+           <widget class="QLineEdit" name="serverCmdLine">
+            <property name="readOnly">
+             <bool>true</bool>
+            </property>
+            <property name="placeholderText">
+             <string>/skin command preview</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="sharingButtonsHLayout">
+            <item>
+             <widget class="QPushButton" name="copyCmdBtn">
+              <property name="text">
+               <string>Copy Command</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="uploadCloudBtn">
+              <property name="text">
+               <string>Upload to Cloud</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="autoCopyLaunchCB">
+            <property name="text">
+             <string>Auto-copy command on launch</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="sharingInfoLabel">
+            <property name="text">
+             <string>&lt;html&gt;&lt;body&gt;&lt;p style=&quot;color:gray;&quot;&gt;On offline servers (with SkinsRestorer), run this command in chat to share your skin with others.&lt;br/&gt;In singleplayer, your skin is applied automatically!&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
             </property>
            </widget>
           </item>

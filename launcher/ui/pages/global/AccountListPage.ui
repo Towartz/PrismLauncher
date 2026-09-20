@@ -62,6 +62,7 @@
    <addaction name="actionMoveDown"/>
    <addaction name="separator"/>
    <addaction name="actionManageSkins"/>
+   <addaction name="actionCopySkinCommand"/>
   </widget>
   <action name="actionSetDefault">
    <property name="text">
@@ -115,6 +116,14 @@
   <action name="actionMoveDown">
    <property name="text">
     <string>Move &amp;Down</string>
+   </property>
+  </action>
+  <action name="actionCopySkinCommand">
+   <property name="text">
+    <string>&amp;Copy /skin Command</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy the /skin command for this offline account to clipboard</string>
    </property>
   </action>
  </widget>

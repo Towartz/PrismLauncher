@@ -255,6 +255,8 @@ set(MINECRAFT_SOURCES
     minecraft/launch/EnsureAvailableMemory.h
     minecraft/launch/EnsureOfflineLibraries.cpp
     minecraft/launch/EnsureOfflineLibraries.h
+    minecraft/launch/ApplyOfflineSkin.cpp
+    minecraft/launch/ApplyOfflineSkin.h
     minecraft/launch/ModMinecraftJar.cpp
     minecraft/launch/ModMinecraftJar.h
     minecraft/launch/ExtractNatives.cpp
@@ -369,6 +371,8 @@ set(MINECRAFT_SOURCES
     # Minecraft skins
     minecraft/skins/SkinRequests.cpp
     minecraft/skins/SkinRequests.h
+    minecraft/skins/CloudSkinUpload.cpp
+    minecraft/skins/CloudSkinUpload.h
     minecraft/skins/SkinModel.cpp
     minecraft/skins/SkinModel.h
     minecraft/skins/SkinList.cpp

@@ -797,8 +797,11 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("ShowModIncompat", false);
         m_settings->registerSetting("DownloadGameFilesDuringInstanceCreation", true);
 
-        // Minecraft offline player name
+        // Minecraft offline player name & skin settings
         m_settings->registerSetting("LastOfflinePlayerName", "");
+        m_settings->registerSetting("AutoCopyOfflineSkinCommand", true);
+        m_settings->registerSetting("OfflineSkinResourcePackEnabled", true);
+        m_settings->registerSetting("OfflineSkinCSLEnabled", true);
 
         // Wrapper command for launch
         m_settings->registerSetting("WrapperCommand", "");
