@@ -583,7 +583,7 @@ void ModFolderPage::toggleIgnoreSelectedMods()
     if (!m_instance) {
         return;
     }
-    auto selection = m_filterModel->mapSelectionToSource(ui->treeView->selectionModel()->selection()).indexes();
+    auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
     auto selectedMods = m_model->selectedResources(selection);
     if (selectedMods.isEmpty()) {
         return;
