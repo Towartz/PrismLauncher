@@ -34,8 +34,8 @@
 
 #include "StringUtils.h"
 
-#include "BuildConfig.h"
 #include "Application.h"
+#include "BuildConfig.h"
 #include "settings/SettingsObject.h"
 
 #include "ui/dialogs/UpdateAvailableDialog.h"
@@ -98,7 +98,7 @@ void PrismExternalUpdater::checkForUpdates()
 void PrismExternalUpdater::checkForUpdates(bool triggeredByUser) const
 {
     QProgressDialog progress(tr("Checking for updates..."), "", 0, 0, priv->parent);
-    progress.setMinimumDuration(0); // Appear immediately without waiting
+    progress.setMinimumDuration(0);  // Appear immediately without waiting
     progress.setCancelButton(nullptr);
     progress.adjustSize();
     if (triggeredByUser) {
@@ -118,8 +118,8 @@ void PrismExternalUpdater::checkForUpdates(bool triggeredByUser) const
     exeName = QString("bin/%1").arg(exeName);
 #endif
 
-    QStringList args = { "--check-only", "--dir", priv->dataDir.absolutePath(), "--debug",
-                         "--prism-version", BuildConfig.printableVersionString() };
+    QStringList args = { "--check-only", "--dir",           priv->dataDir.absolutePath(),
+                         "--debug",      "--prism-version", BuildConfig.printableVersionString() };
     if (APPLICATION && APPLICATION->settings()) {
         auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();
         if (!updateRepo.isEmpty()) {
@@ -367,7 +367,7 @@ void PrismExternalUpdater::performUpdate(const QString& versionTag) const
     exeName = QString("bin/%1").arg(exeName);
 #endif
 
-    QStringList args = { "--dir", priv->dataDir.absolutePath(), "--install-version", versionTag,
+    QStringList args = { "--dir",           priv->dataDir.absolutePath(),        "--install-version", versionTag,
                          "--prism-version", BuildConfig.printableVersionString() };
     if (APPLICATION && APPLICATION->settings()) {
         auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();

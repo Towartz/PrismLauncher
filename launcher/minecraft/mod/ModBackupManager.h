@@ -27,18 +27,18 @@
 class ResourceFolderModel;
 
 struct ModBackupEntry {
-    QString id;                    //!< Unique backup id: timestamp_modId
-    QString modId;                 //!< Mod slug or unique id
-    QString modName;               //!< Human-readable mod name
-    QDateTime timestamp;           //!< Time backup was taken
-    QString archivedFile;          //!< File path relative to backupDir()
-    QString originalFileName;      //!< Filename when installed in mods/
-    QString archivedIndex;         //!< Index path relative to backupDir()
-    QString originalIndexFileName; //!< e.g. mod.pw.toml
-    QString oldVersion;            //!< Replaced version string
-    QString newVersion;            //!< Upgraded version string
-    QString replacedByFileName;    //!< The newly installed filename
-    qint64 fileSize = 0;           //!< File size in bytes
+    QString id;                     //!< Unique backup id: timestamp_modId
+    QString modId;                  //!< Mod slug or unique id
+    QString modName;                //!< Human-readable mod name
+    QDateTime timestamp;            //!< Time backup was taken
+    QString archivedFile;           //!< File path relative to backupDir()
+    QString originalFileName;       //!< Filename when installed in mods/
+    QString archivedIndex;          //!< Index path relative to backupDir()
+    QString originalIndexFileName;  //!< e.g. mod.pw.toml
+    QString oldVersion;             //!< Replaced version string
+    QString newVersion;             //!< Upgraded version string
+    QString replacedByFileName;     //!< The newly installed filename
+    qint64 fileSize = 0;            //!< File size in bytes
 
     [[nodiscard]] bool isValid() const { return !id.isEmpty() && !archivedFile.isEmpty(); }
 };

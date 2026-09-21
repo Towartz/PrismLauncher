@@ -1221,9 +1221,7 @@ void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
         token = qEnvironmentVariable("GH_TOKEN");
     }
     if (!token.isEmpty()) {
-        github_api_headers->addHeaders({
-            { "Authorization", QString("Bearer %1").arg(token).toUtf8() }
-        });
+        github_api_headers->addHeaders({ { "Authorization", QString("Bearer %1").arg(token).toUtf8() } });
     }
     download->addHeaderProxy(std::move(github_api_headers));
 
@@ -1262,10 +1260,8 @@ void PrismUpdaterApp::loadReleaseListFromAtomFeed()
     m_current_url = atom_url;
 
     auto headers = std::make_unique<Net::RawHeaderProxy>();
-    headers->addHeaders({
-        { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
-        { "Accept", "application/atom+xml, text/xml" }
-    });
+    headers->addHeaders({ { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
+                          { "Accept", "application/atom+xml, text/xml" } });
     download->addHeaderProxy(std::move(headers));
 
     connect(download.get(), &Net::Request::succeeded, this, [this, response]() {
@@ -1295,7 +1291,9 @@ Result<int> PrismUpdaterApp::parseAtomFeed(const QByteArray* response)
         auto token = xml.readNext();
         if (token == QXmlStreamReader::StartElement && xml.name().compare(QLatin1String("entry"), Qt::CaseInsensitive) == 0) {
             GitHubRelease release = {};
-            while (!(xml.tokenType() == QXmlStreamReader::EndElement && xml.name().compare(QLatin1String("entry"), Qt::CaseInsensitive) == 0) && !xml.atEnd()) {
+            while (!(xml.tokenType() == QXmlStreamReader::EndElement &&
+                     xml.name().compare(QLatin1String("entry"), Qt::CaseInsensitive) == 0) &&
+                   !xml.atEnd()) {
                 xml.readNext();
                 if (xml.tokenType() == QXmlStreamReader::StartElement) {
                     auto tagName = xml.name();
@@ -1322,13 +1320,14 @@ Result<int> PrismUpdaterApp::parseAtomFeed(const QByteArray* response)
                 }
                 release.version = Version(cleanTag);
                 release.draft = false;
-                release.prerelease = release.tag_name.contains('-') || release.tag_name.contains("beta", Qt::CaseInsensitive) || release.tag_name.contains("rc", Qt::CaseInsensitive);
+                release.prerelease = release.tag_name.contains('-') || release.tag_name.contains("beta", Qt::CaseInsensitive) ||
+                                     release.tag_name.contains("rc", Qt::CaseInsensitive);
 
                 auto makeAsset = [&](const QString& filename) {
                     GitHubReleaseAsset asset;
                     asset.name = filename;
                     asset.browser_download_url = QString("https://github.com/%1/%2/releases/download/%3/%4")
-                                                    .arg(m_repoOwner, m_repoName, release.tag_name, filename);
+                                                     .arg(m_repoOwner, m_repoName, release.tag_name, filename);
                     asset.content_type = filename.endsWith(".exe") ? "application/x-msdos-program" : "application/zip";
                     release.assets.append(asset);
                 };

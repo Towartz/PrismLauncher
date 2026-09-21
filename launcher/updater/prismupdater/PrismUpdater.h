@@ -136,11 +136,7 @@ class PrismUpdaterApp : public QApplication {
     Task::Ptr m_current_task;
     QList<GitHubRelease> m_releases;
 
-    enum class UpdateFetchTier {
-        CdnRaw,
-        GitHubApi,
-        AtomFeed
-    };
+    enum class UpdateFetchTier { CdnRaw, GitHubApi, AtomFeed };
     UpdateFetchTier m_currentFetchTier = UpdateFetchTier::CdnRaw;
     QString m_repoOwner;
     QString m_repoName;

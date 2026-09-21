@@ -394,7 +394,8 @@ void LaunchController::launchInstance()
 
         // Prepend Server Status only for Microsoft / online accounts
         if (!m_accountToUse || m_accountToUse->accountType() != AccountType::Offline) {
-            const QStringList servers = { "login.microsoftonline.com", "session.minecraft.net", "textures.minecraft.net", "api.mojang.com" };
+            const QStringList servers = { "login.microsoftonline.com", "session.minecraft.net", "textures.minecraft.net",
+                                          "api.mojang.com" };
 
             m_launcher->prependStep(makeShared<PrintServers>(m_launcher, servers));
         }

@@ -148,12 +148,12 @@ bool ModBackupManager::saveManifest(const QList<ModBackupEntry>& backups) const
 }
 
 bool ModBackupManager::createBackup(const QString& oldFilePath,
-                                   const QString& oldIndexFilePath,
-                                   const QString& modId,
-                                   const QString& modName,
-                                   const QString& oldVersion,
-                                   const QString& newVersion,
-                                   const QString& replacedByFileName)
+                                    const QString& oldIndexFilePath,
+                                    const QString& modId,
+                                    const QString& modName,
+                                    const QString& oldVersion,
+                                    const QString& newVersion,
+                                    const QString& replacedByFileName)
 {
     if (!isBackupEnabled()) {
         qDebug() << "Mod backup skipped: feature is disabled in settings.";
@@ -260,8 +260,7 @@ QList<ModBackupEntry> ModBackupManager::getBackupsForMod(const QString& modIdOrS
     QList<ModBackupEntry> all = getAllBackups();
     QList<ModBackupEntry> filtered;
     for (const auto& item : all) {
-        if (item.modId.compare(modIdOrSlug, Qt::CaseInsensitive) == 0 ||
-            item.modName.compare(modIdOrSlug, Qt::CaseInsensitive) == 0) {
+        if (item.modId.compare(modIdOrSlug, Qt::CaseInsensitive) == 0 || item.modName.compare(modIdOrSlug, Qt::CaseInsensitive) == 0) {
             filtered.append(item);
         }
     }
@@ -280,18 +279,21 @@ std::optional<ModBackupEntry> ModBackupManager::getLatestBackupForMod(const QStr
 bool ModBackupManager::restoreBackup(const ModBackupEntry& entry, ResourceFolderModel* model, QString* errorMsg)
 {
     if (!entry.isValid()) {
-        if (errorMsg) *errorMsg = QObject::tr("Invalid backup entry.");
+        if (errorMsg)
+            *errorMsg = QObject::tr("Invalid backup entry.");
         return false;
     }
 
     if (model && model->instance() && model->instance()->isRunning()) {
-        if (errorMsg) *errorMsg = QObject::tr("Cannot rollback mods while Minecraft is running. Please stop the game first.");
+        if (errorMsg)
+            *errorMsg = QObject::tr("Cannot rollback mods while Minecraft is running. Please stop the game first.");
         return false;
     }
 
     QString archivedPath = FS::PathCombine(backupDir().absolutePath(), entry.archivedFile);
     if (!QFileInfo::exists(archivedPath)) {
-        if (errorMsg) *errorMsg = QObject::tr("Backup file not found at: %1").arg(archivedPath);
+        if (errorMsg)
+            *errorMsg = QObject::tr("Backup file not found at: %1").arg(archivedPath);
         return false;
     }
 
@@ -302,7 +304,8 @@ bool ModBackupManager::restoreBackup(const ModBackupEntry& entry, ResourceFolder
     if (model) {
         QString fileToRemove;
         for (const auto* res : model->allResources()) {
-            if (!res) continue;
+            if (!res)
+                continue;
             auto meta = res->metadata();
             if ((meta && meta->slug.compare(entry.modId, Qt::CaseInsensitive) == 0) ||
                 res->fileinfo().fileName().compare(entry.replacedByFileName, Qt::CaseInsensitive) == 0 ||
@@ -319,7 +322,8 @@ bool ModBackupManager::restoreBackup(const ModBackupEntry& entry, ResourceFolder
     // Restore the archived mod file
     QString destFilePath = modsDir.filePath(entry.originalFileName);
     if (!FS::copy(archivedPath, destFilePath).overwrite(true)()) {
-        if (errorMsg) *errorMsg = QObject::tr("Failed to copy backup file to: %1").arg(destFilePath);
+        if (errorMsg)
+            *errorMsg = QObject::tr("Failed to copy backup file to: %1").arg(destFilePath);
         return false;
     }
 

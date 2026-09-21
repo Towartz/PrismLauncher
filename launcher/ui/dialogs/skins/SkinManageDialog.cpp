@@ -24,7 +24,6 @@
 #include <QAction>
 #include <QClipboard>
 #include <QDialog>
-#include "minecraft/skins/CloudSkinUpload.h"
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -34,6 +33,7 @@
 #include <QMimeDatabase>
 #include <QPainter>
 #include <QUrl>
+#include "minecraft/skins/CloudSkinUpload.h"
 
 #include "Application.h"
 #include "DesktopServices.h"
@@ -127,7 +127,8 @@ SkinManageDialog::SkinManageDialog(QWidget* parent, MinecraftAccountPtr acct)
         connect(m_ui->copyCmdBtn, &QPushButton::clicked, this, &SkinManageDialog::on_copyCmdBtn_clicked);
         connect(m_ui->uploadCloudBtn, &QPushButton::clicked, this, &SkinManageDialog::on_uploadCloudBtn_clicked);
         connect(m_ui->serverCmdLine, &QLineEdit::textEdited, this, &SkinManageDialog::on_serverCmdLine_textEdited);
-        connect(m_ui->skinFormatCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &SkinManageDialog::on_skinFormatCombo_currentIndexChanged);
+        connect(m_ui->skinFormatCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+                &SkinManageDialog::on_skinFormatCombo_currentIndexChanged);
         updateServerCommand();
     }
 
@@ -740,7 +741,8 @@ void SkinManageDialog::on_copyCmdBtn_clicked()
         QString format = m_ui->skinFormatCombo->currentData().toString();
         QString msg;
         if (format == "url") {
-            msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.").arg(text);
+            msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.")
+                      .arg(text);
         } else {
             msg = tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers.").arg(text);
         }
@@ -792,9 +794,10 @@ void SkinManageDialog::on_uploadCloudBtn_clicked()
                                          QMessageBox::Information)
                 ->exec();
         } else {
-            CustomMessageBox::selectable(this, tr("Upload Failed"),
-                                         tr("Failed to upload skin to public skin host. Please check your internet connection or try again later."),
-                                         QMessageBox::Warning)
+            CustomMessageBox::selectable(
+                this, tr("Upload Failed"),
+                tr("Failed to upload skin to public skin host. Please check your internet connection or try again later."),
+                QMessageBox::Warning)
                 ->exec();
         }
     }
@@ -804,4 +807,3 @@ void SkinManageDialog::on_autoCopyLaunchCB_toggled(bool checked)
 {
     APPLICATION->settings()->set("AutoCopyOfflineSkinCommand", checked);
 }
-

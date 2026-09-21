@@ -26,8 +26,8 @@
 #include "FileSystem.h"
 #include "minecraft/MinecraftInstance.h"
 #include "minecraft/PackProfile.h"
-#include "minecraft/mod/ResourceFolderModel.h"
 #include "minecraft/mod/ModBackupManager.h"
+#include "minecraft/mod/ResourceFolderModel.h"
 
 #include "minecraft/mod/ShaderPackFolderModel.h"
 #include "modplatform/ModIndex.h"
@@ -124,12 +124,8 @@ void ResourceDownloadTask::downloadSucceeded()
         if (m_pack && !m_pack->slug.isEmpty()) {
             oldIndexFilePath = m_pack_model->indexDir().filePath(m_pack->slug + ".pw.toml");
         }
-        backupManager.createBackup(oldFilePath, oldIndexFilePath,
-                                   m_pack ? m_pack->slug : oldName,
-                                   oldName,
-                                   oldVersion,
-                                   m_pack_version.version,
-                                   getFilename());
+        backupManager.createBackup(oldFilePath, oldIndexFilePath, m_pack ? m_pack->slug : oldName, oldName, oldVersion,
+                                   m_pack_version.version, getFilename());
     }
 
     m_pack_model->uninstallResource(oldFilename, true);

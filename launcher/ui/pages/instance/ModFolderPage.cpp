@@ -37,8 +37,8 @@
  */
 
 #include "ModFolderPage.h"
-#include "minecraft/mod/Resource.h"
 #include "minecraft/mod/ModBackupManager.h"
+#include "minecraft/mod/Resource.h"
 #include "ui/dialogs/ExportToModListDialog.h"
 #include "ui/dialogs/InstallLoaderDialog.h"
 #include "ui/dialogs/ModBackupDialog.h"
@@ -424,7 +424,9 @@ void ModFolderPage::updateActions()
         auto latestBackup = manager.getLatestBackupForMod(modId);
         if (latestBackup.has_value()) {
             canRollback = true;
-            m_rollbackAction->setText(tr("Rollback to %1...").arg(latestBackup->oldVersion.isEmpty() ? latestBackup->originalFileName : latestBackup->oldVersion));
+            m_rollbackAction->setText(
+                tr("Rollback to %1...")
+                    .arg(latestBackup->oldVersion.isEmpty() ? latestBackup->originalFileName : latestBackup->oldVersion));
         } else {
             m_rollbackAction->setText(tr("Rollback Mod..."));
         }
@@ -457,8 +459,7 @@ void ModFolderPage::rollbackMod()
     auto backups = manager.getBackupsForMod(modId);
 
     if (backups.isEmpty()) {
-        CustomMessageBox::selectable(this, tr("No Backups"),
-                                     tr("No previous backups found for '%1'.").arg(mod->name()),
+        CustomMessageBox::selectable(this, tr("No Backups"), tr("No previous backups found for '%1'.").arg(mod->name()),
                                      QMessageBox::Information)
             ->exec();
         return;
@@ -466,21 +467,19 @@ void ModFolderPage::rollbackMod()
 
     if (backups.size() == 1) {
         const auto& entry = backups.first();
-        auto confirm = CustomMessageBox::selectable(
-                           this, tr("Confirm Rollback"),
-                           tr("Are you sure you want to rollback '%1' to version '%2'?\n\n"
-                              "This will restore '%3' and replace the current version.")
-                               .arg(mod->name(),
-                                    entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion,
-                                    entry.originalFileName),
-                           QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
-                           ->exec();
+        auto confirm =
+            CustomMessageBox::selectable(
+                this, tr("Confirm Rollback"),
+                tr("Are you sure you want to rollback '%1' to version '%2'?\n\n"
+                   "This will restore '%3' and replace the current version.")
+                    .arg(mod->name(), entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion, entry.originalFileName),
+                QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
+                ->exec();
 
         if (confirm == QMessageBox::Yes) {
             QString error;
             if (!manager.restoreBackup(entry, m_model, &error)) {
-                CustomMessageBox::selectable(this, tr("Rollback Failed"),
-                                             tr("Failed to rollback mod: %1").arg(error),
+                CustomMessageBox::selectable(this, tr("Rollback Failed"), tr("Failed to rollback mod: %1").arg(error),
                                              QMessageBox::Critical)
                     ->exec();
             } else {
@@ -592,7 +591,8 @@ void ModFolderPage::toggleIgnoreSelectedMods()
     auto ignored = m_instance->settings()->get("IgnoredUpdateResources").toStringList();
     bool anyAdded = false;
     for (auto* mod : selectedMods) {
-        if (!mod) continue;
+        if (!mod)
+            continue;
         auto fileName = mod->fileinfo().fileName();
         if (ignored.contains(fileName)) {
             ignored.removeAll(fileName);
@@ -603,7 +603,8 @@ void ModFolderPage::toggleIgnoreSelectedMods()
     }
     m_instance->settings()->set("IgnoredUpdateResources", ignored);
     if (anyAdded) {
-        CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Selected mod(s) will be skipped during future update checks."))->exec();
+        CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Selected mod(s) will be skipped during future update checks."))
+            ->exec();
     } else {
         CustomMessageBox::selectable(this, tr("Ignored Updates"), tr("Selected mod(s) were removed from the ignore list."))->exec();
     }

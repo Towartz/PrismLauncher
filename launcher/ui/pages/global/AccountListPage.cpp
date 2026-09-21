@@ -275,9 +275,10 @@ void AccountListPage::on_actionCopySkinCommand_triggered()
         QString url = skin.url.trimmed();
         if (url.isEmpty()) {
             CustomMessageBox::selectable(this, tr("No Skin URL"),
-                                         tr("This offline skin does not have a public URL yet.\nPlease click 'Manage Skins' to enter a skin URL or click 'Upload to Cloud'."),
+                                         tr("This offline skin does not have a public URL yet.\nPlease click 'Manage Skins' to enter a "
+                                            "skin URL or click 'Upload to Cloud'."),
                                          QMessageBox::Information)
-                    ->exec();
+                ->exec();
             return;
         }
 
@@ -303,7 +304,8 @@ void AccountListPage::on_actionCopySkinCommand_triggered()
             clipboard->setText(textToCopy);
             QString msg;
             if (format == "url") {
-                msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.").arg(textToCopy);
+                msg = tr("Skin URL copied to clipboard:\n\n%1\n\nPaste this into your server's skin command, in-game menu, or web panel.")
+                          .arg(textToCopy);
             } else {
                 msg = tr("Command copied to clipboard:\n\n%1\n\nPaste this in server chat on offline servers.").arg(textToCopy);
             }

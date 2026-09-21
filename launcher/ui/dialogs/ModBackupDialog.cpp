@@ -27,10 +27,7 @@
 #include "DesktopServices.h"
 #include "ui/dialogs/CustomMessageBox.h"
 
-ModBackupDialog::ModBackupDialog(QWidget* parent,
-                                 MinecraftInstance* instance,
-                                 ResourceFolderModel* model,
-                                 const QString& initialFilter)
+ModBackupDialog::ModBackupDialog(QWidget* parent, MinecraftInstance* instance, ResourceFolderModel* model, const QString& initialFilter)
     : QDialog(parent), m_instance(instance), m_model(model)
 {
     m_manager = std::make_unique<ModBackupManager>(instance->instanceRoot());
@@ -49,10 +46,10 @@ void ModBackupDialog::setupUi()
 
     auto* mainLayout = new QVBoxLayout(this);
 
-    auto* descLabel = new QLabel(
-        tr("Mod update backups are created automatically when updating mods.\n"
-           "If Minecraft crashes or has bugs after an update, select an older version below and click Rollback / Restore."),
-        this);
+    auto* descLabel =
+        new QLabel(tr("Mod update backups are created automatically when updating mods.\n"
+                      "If Minecraft crashes or has bugs after an update, select an older version below and click Rollback / Restore."),
+                   this);
     descLabel->setWordWrap(true);
     mainLayout->addWidget(descLabel);
 
@@ -81,9 +78,8 @@ void ModBackupDialog::setupUi()
     m_table->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
     connect(m_table, &QTableWidget::itemSelectionChanged, this, &ModBackupDialog::onSelectionChanged);
-    connect(m_table, &QTableWidget::cellDoubleClicked, this, [this]([[maybe_unused]] int row, [[maybe_unused]] int column) {
-        onRestoreClicked();
-    });
+    connect(m_table, &QTableWidget::cellDoubleClicked, this,
+            [this]([[maybe_unused]] int row, [[maybe_unused]] int column) { onRestoreClicked(); });
     mainLayout->addWidget(m_table);
 
     // Status label
@@ -201,15 +197,14 @@ void ModBackupDialog::onRestoreClicked()
         return;
     }
 
-    auto confirm = CustomMessageBox::selectable(
-                       this, tr("Confirm Rollback"),
-                       tr("Are you sure you want to rollback '%1' to version '%2'?\n\n"
-                          "This will restore '%3' and replace any current version of this mod.")
-                           .arg(entry.modName,
-                                entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion,
-                                entry.originalFileName),
-                       QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
-                       ->exec();
+    auto confirm =
+        CustomMessageBox::selectable(
+            this, tr("Confirm Rollback"),
+            tr("Are you sure you want to rollback '%1' to version '%2'?\n\n"
+               "This will restore '%3' and replace any current version of this mod.")
+                .arg(entry.modName, entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion, entry.originalFileName),
+            QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
+            ->exec();
 
     if (confirm != QMessageBox::Yes) {
         return;
@@ -217,9 +212,7 @@ void ModBackupDialog::onRestoreClicked()
 
     QString error;
     if (!m_manager->restoreBackup(entry, m_model, &error)) {
-        CustomMessageBox::selectable(this, tr("Rollback Failed"),
-                                     tr("Failed to rollback mod: %1").arg(error),
-                                     QMessageBox::Critical)
+        CustomMessageBox::selectable(this, tr("Rollback Failed"), tr("Failed to rollback mod: %1").arg(error), QMessageBox::Critical)
             ->exec();
         return;
     }
@@ -244,8 +237,7 @@ void ModBackupDialog::onDeleteClicked()
 
     auto confirm = CustomMessageBox::selectable(
                        this, tr("Confirm Delete"),
-                       tr("Are you sure you want to delete the backup for '%1' (%2)?")
-                           .arg(entry.modName, entry.originalFileName),
+                       tr("Are you sure you want to delete the backup for '%1' (%2)?").arg(entry.modName, entry.originalFileName),
                        QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
                        ->exec();
 
@@ -257,11 +249,10 @@ void ModBackupDialog::onDeleteClicked()
 
 void ModBackupDialog::onClearAllClicked()
 {
-    auto confirm = CustomMessageBox::selectable(
-                       this, tr("Confirm Clear All"),
-                       tr("Are you sure you want to delete ALL mod backups for this instance?\n"
-                          "This will permanently delete all backup files and cannot be undone."),
-                       QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
+    auto confirm = CustomMessageBox::selectable(this, tr("Confirm Clear All"),
+                                                tr("Are you sure you want to delete ALL mod backups for this instance?\n"
+                                                   "This will permanently delete all backup files and cannot be undone."),
+                                                QMessageBox::Warning, QMessageBox::Yes | QMessageBox::No, QMessageBox::No)
                        ->exec();
 
     if (confirm == QMessageBox::Yes) {
