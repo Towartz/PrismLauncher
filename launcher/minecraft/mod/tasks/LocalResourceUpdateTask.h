@@ -38,7 +38,7 @@ class LocalResourceUpdateTask : public Task {
     void executeTask() override;
 
    signals:
-    void hasOldResource(QString name, QString filename);
+    void hasOldResource(QString name, QString filename, QString oldVersion = QString());
 
    private:
     QDir m_index_dir;

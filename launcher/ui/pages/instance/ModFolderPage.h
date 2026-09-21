@@ -62,6 +62,7 @@ class ModFolderPage : public ExternalResourcesPage {
 
    public slots:
     void updateFrame(const QModelIndex& current, const QModelIndex& previous) override;
+    void updateActions() override;
 
    private slots:
     void removeItems(const QItemSelection& selection) override;
@@ -74,10 +75,14 @@ class ModFolderPage : public ExternalResourcesPage {
     void changeModVersion();
     void toggleIgnoreSelectedMods();
     void clearIgnoredMods();
+    void rollbackMod();
+    void manageModBackups();
 
    protected:
     ModFolderModel* m_model;
     QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
+    QAction* m_rollbackAction = nullptr;
+    QAction* m_manageBackupsAction = nullptr;
 };
 
 class CoreModFolderPage : public ModFolderPage {

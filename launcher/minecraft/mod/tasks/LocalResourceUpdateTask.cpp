@@ -52,7 +52,7 @@ void LocalResourceUpdateTask::executeTask()
 
     auto old_metadata = Metadata::get(m_index_dir, m_project.addonId);
     if (old_metadata.isValid()) {
-        emit hasOldResource(old_metadata.name, old_metadata.filename);
+        emit hasOldResource(old_metadata.name, old_metadata.filename, old_metadata.version_number);
         if (m_project.slug.isEmpty())
             m_project.slug = old_metadata.slug;
     }

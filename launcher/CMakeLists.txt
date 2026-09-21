@@ -323,6 +323,8 @@ set(MINECRAFT_SOURCES
     minecraft/mod/ModDetails.h
     minecraft/mod/ModFolderModel.h
     minecraft/mod/ModFolderModel.cpp
+    minecraft/mod/ModBackupManager.h
+    minecraft/mod/ModBackupManager.cpp
     minecraft/mod/Resource.h
     minecraft/mod/Resource.cpp
     minecraft/mod/ResourceFolderModel.h
@@ -1082,6 +1084,8 @@ SET(LAUNCHER_SOURCES
     ui/dialogs/ChooseProviderDialog.cpp
     ui/dialogs/ResourceUpdateDialog.cpp
     ui/dialogs/ResourceUpdateDialog.h
+    ui/dialogs/ModBackupDialog.cpp
+    ui/dialogs/ModBackupDialog.h
     ui/dialogs/InstallLoaderDialog.cpp
     ui/dialogs/InstallLoaderDialog.h
     ui/dialogs/ChooseOfflineNameDialog.cpp

@@ -38,8 +38,10 @@
 
 #include "ModFolderPage.h"
 #include "minecraft/mod/Resource.h"
+#include "minecraft/mod/ModBackupManager.h"
 #include "ui/dialogs/ExportToModListDialog.h"
 #include "ui/dialogs/InstallLoaderDialog.h"
+#include "ui/dialogs/ModBackupDialog.h"
 #include "ui_ExternalResourcesPage.h"
 
 #include <QAbstractItemModel>
@@ -104,11 +106,28 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     auto* clearIgnoredAction = updateMenu->addAction(tr("Clear Ignored Updates List"));
     connect(clearIgnoredAction, &QAction::triggered, this, &ModFolderPage::clearIgnoredMods);
 
+    m_rollbackAction = new QAction(tr("Rollback Mod..."), this);
+    m_rollbackAction->setIcon(QIcon::fromTheme("edit-undo"));
+    m_rollbackAction->setToolTip(tr("Rollback selected mod to a previously backed-up version."));
+    m_rollbackAction->setEnabled(false);
+    connect(m_rollbackAction, &QAction::triggered, this, &ModFolderPage::rollbackMod);
+
+    m_manageBackupsAction = new QAction(tr("Mod Backups..."), this);
+    m_manageBackupsAction->setIcon(QIcon::fromTheme("document-open-recent"));
+    m_manageBackupsAction->setToolTip(tr("View and manage backed-up mod versions."));
+    connect(m_manageBackupsAction, &QAction::triggered, this, &ModFolderPage::manageModBackups);
+
+    updateMenu->addSeparator();
+    updateMenu->addAction(m_rollbackAction);
+    updateMenu->addAction(m_manageBackupsAction);
+
     ui->actionUpdateItem->setMenu(updateMenu);
 
     ui->actionChangeVersion->setToolTip(tr("Change a mod's version."));
     connect(ui->actionChangeVersion, &QAction::triggered, this, &ModFolderPage::changeModVersion);
     ui->actionsToolbar->insertActionAfter(ui->actionUpdateItem, ui->actionChangeVersion);
+    ui->actionsToolbar->insertActionAfter(ui->actionChangeVersion, m_rollbackAction);
+    ui->actionsToolbar->insertActionAfter(m_rollbackAction, m_manageBackupsAction);
 
     ui->actionViewHomepage->setToolTip(tr("View the homepages of all selected mods."));
 
@@ -364,6 +383,100 @@ void ModFolderPage::exportModMetadata()
 
     std::ranges::sort(selectedMods, [](const Mod* a, const Mod* b) { return a->name() < b->name(); });
     ExportToModListDialog dlg(m_instance->name(), selectedMods, this);
+    dlg.exec();
+}
+
+void ModFolderPage::updateActions()
+{
+    ExternalResourcesPage::updateActions();
+
+    auto selection = m_filterModel->mapSelectionToSource(ui->treeView->selectionModel()->selection()).indexes();
+    auto selectedMods = m_model->selectedMods(selection);
+
+    bool canRollback = false;
+    if (selectedMods.size() == 1 && m_instance) {
+        auto* mod = selectedMods[0];
+        ModBackupManager manager(m_instance->instanceRoot());
+        QString modId = mod->metadata() ? mod->metadata()->slug : mod->name();
+        auto latestBackup = manager.getLatestBackupForMod(modId);
+        if (latestBackup.has_value()) {
+            canRollback = true;
+            m_rollbackAction->setText(tr("Rollback to %1...").arg(latestBackup->oldVersion.isEmpty() ? latestBackup->originalFileName : latestBackup->oldVersion));
+        } else {
+            m_rollbackAction->setText(tr("Rollback Mod..."));
+        }
+    } else {
+        m_rollbackAction->setText(tr("Rollback Mod..."));
+    }
+    m_rollbackAction->setEnabled(canRollback);
+    m_manageBackupsAction->setEnabled(true);
+}
+
+void ModFolderPage::rollbackMod()
+{
+    if (m_instance != nullptr && m_instance->isRunning()) {
+        CustomMessageBox::selectable(this, tr("Game Running"),
+                                     tr("Cannot rollback mods while Minecraft is running. Please stop the game first."),
+                                     QMessageBox::Warning)
+            ->exec();
+        return;
+    }
+
+    auto selection = m_filterModel->mapSelectionToSource(ui->treeView->selectionModel()->selection()).indexes();
+    auto selectedMods = m_model->selectedMods(selection);
+    if (selectedMods.size() != 1) {
+        return;
+    }
+
+    auto* mod = selectedMods[0];
+    ModBackupManager manager(m_instance->instanceRoot());
+    QString modId = mod->metadata() ? mod->metadata()->slug : mod->name();
+    auto backups = manager.getBackupsForMod(modId);
+
+    if (backups.isEmpty()) {
+        CustomMessageBox::selectable(this, tr("No Backups"),
+                                     tr("No previous backups found for '%1'.").arg(mod->name()),
+                                     QMessageBox::Information)
+            ->exec();
+        return;
+    }
+
+    if (backups.size() == 1) {
+        const auto& entry = backups.first();
+        auto confirm = CustomMessageBox::selectable(
+                           this, tr("Confirm Rollback"),
+                           tr("Are you sure you want to rollback '%1' to version '%2'?\n\n"
+                              "This will restore '%3' and replace the current version.")
+                               .arg(mod->name(),
+                                    entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion,
+                                    entry.originalFileName),
+                           QMessageBox::Question, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes)
+                           ->exec();
+
+        if (confirm == QMessageBox::Yes) {
+            QString error;
+            if (!manager.restoreBackup(entry, m_model, &error)) {
+                CustomMessageBox::selectable(this, tr("Rollback Failed"),
+                                             tr("Failed to rollback mod: %1").arg(error),
+                                             QMessageBox::Critical)
+                    ->exec();
+            } else {
+                CustomMessageBox::selectable(this, tr("Rollback Successful"),
+                                             tr("'%1' has been successfully rolled back to version '%2'.")
+                                                 .arg(mod->name(), entry.oldVersion.isEmpty() ? entry.originalFileName : entry.oldVersion),
+                                             QMessageBox::Information)
+                    ->exec();
+            }
+        }
+    } else {
+        ModBackupDialog dlg(this, m_instance, m_model, mod->name());
+        dlg.exec();
+    }
+}
+
+void ModFolderPage::manageModBackups()
+{
+    ModBackupDialog dlg(this, m_instance, m_model);
     dlg.exec();
 }
 

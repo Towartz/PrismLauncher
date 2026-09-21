@@ -52,6 +52,9 @@ class PrismUpdaterApp : public QApplication {
     PrismUpdaterApp(int& argc, char** argv);
     virtual ~PrismUpdaterApp();
     void loadReleaseList();
+    void loadReleaseListFromCdn();
+    void loadReleaseListFromApi(int page);
+    void loadReleaseListFromAtomFeed();
     void run();
     Status status() const { return m_status; }
 
@@ -64,6 +67,7 @@ class PrismUpdaterApp : public QApplication {
 
     void downloadReleasePage(const QString& api_url, int page);
     Result<int> parseReleasePage(const QByteArray* response);
+    Result<int> parseAtomFeed(const QByteArray* response);
 
     bool needUpdate(const GitHubRelease& release);
 
@@ -131,6 +135,15 @@ class PrismUpdaterApp : public QApplication {
     QString m_current_url;
     Task::Ptr m_current_task;
     QList<GitHubRelease> m_releases;
+
+    enum class UpdateFetchTier {
+        CdnRaw,
+        GitHubApi,
+        AtomFeed
+    };
+    UpdateFetchTier m_currentFetchTier = UpdateFetchTier::CdnRaw;
+    QString m_repoOwner;
+    QString m_repoName;
 
    public:
     std::unique_ptr<QFile> logFile;

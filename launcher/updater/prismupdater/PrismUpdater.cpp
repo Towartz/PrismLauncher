@@ -38,6 +38,7 @@
 #include <QNetworkRequest>
 #include <QProcess>
 #include <QProgressDialog>
+#include <QXmlStreamReader>
 #include <memory>
 
 #include <filesystem>
@@ -1156,13 +1157,49 @@ void PrismUpdaterApp::loadReleaseList()
 
     auto path_parts = github_repo.path().split('/');
     path_parts.removeFirst();  // empty segment from leading /
-    auto repo_owner = path_parts.takeFirst();
-    auto repo_name = path_parts.takeFirst();
-    auto api_url = QString("https://api.github.com/repos/%1/%2/releases").arg(repo_owner, repo_name);
+    m_repoOwner = path_parts.takeFirst();
+    m_repoName = path_parts.takeFirst();
 
-    qDebug() << "Fetching release list from" << api_url;
+    // Start with Tier 1: Zero-rate-limit Fastly CDN raw releases.json
+    loadReleaseListFromCdn();
+}
 
-    downloadReleasePage(api_url, 1);
+void PrismUpdaterApp::loadReleaseListFromCdn()
+{
+    m_currentFetchTier = UpdateFetchTier::CdnRaw;
+    auto cdn_url = QString("https://raw.githubusercontent.com/%1/%2/develop/releases.json").arg(m_repoOwner, m_repoName);
+    qDebug() << "Fetching release list via CDN cache from" << cdn_url;
+
+    auto [download, response] = Net::Request::makeByteArray(cdn_url);
+    download->setNetwork(m_network.get());
+    m_current_url = cdn_url;
+
+    connect(download.get(), &Net::Request::succeeded, this, [this, response]() {
+        auto numFound = parseReleasePage(response);
+        if (!numFound || numFound.value() == 0) {
+            qWarning() << "Failed to parse releases from CDN cache, falling back to GitHub REST API...";
+            loadReleaseListFromApi(1);
+        } else {
+            qDebug() << "Successfully loaded" << m_releases.length() << "releases via Fastly CDN cache";
+            run();
+        }
+    });
+    connect(download.get(), &Net::Request::failed, this, [this](QString reason) {
+        qWarning() << "CDN cache unavailable (" << reason << "), falling back to GitHub REST API...";
+        loadReleaseListFromApi(1);
+    });
+
+    m_current_task.reset(download);
+    QCoreApplication::processEvents();
+    QMetaObject::invokeMethod(download.get(), &Task::start, Qt::QueuedConnection);
+}
+
+void PrismUpdaterApp::loadReleaseListFromApi(int page)
+{
+    m_currentFetchTier = UpdateFetchTier::GitHubApi;
+    auto api_url = QString("https://api.github.com/repos/%1/%2/releases").arg(m_repoOwner, m_repoName);
+    qDebug() << "Fetching release list from GitHub REST API" << api_url << "page" << page;
+    downloadReleasePage(api_url, page);
 }
 
 void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
@@ -1177,31 +1214,147 @@ void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
     github_api_headers->addHeaders({
         { "Accept", "application/vnd.github+json" },
         { "X-GitHub-Api-Version", "2022-11-28" },
+        { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
     });
+    auto token = qEnvironmentVariable("GITHUB_TOKEN");
+    if (token.isEmpty()) {
+        token = qEnvironmentVariable("GH_TOKEN");
+    }
+    if (!token.isEmpty()) {
+        github_api_headers->addHeaders({
+            { "Authorization", QString("Bearer %1").arg(token).toUtf8() }
+        });
+    }
     download->addHeaderProxy(std::move(github_api_headers));
 
     connect(download.get(), &Net::Request::succeeded, this, [this, response, per_page, api_url, page]() {
         auto numFound = parseReleasePage(response);
         if (!numFound) {
-            auto errMsg = QString("Failed to parse releases from github: %1\n%2")
-                              .arg(numFound.error())
-                              .arg(QString::fromStdString(response->toStdString()));
-            fail(errMsg);
+            qWarning() << "Failed to parse releases from GitHub REST API, falling back to Atom feed...";
+            loadReleaseListFromAtomFeed();
         } else if (!(numFound.value() < per_page)) {  // there may be more, fetch next page
             downloadReleasePage(api_url, page + 1);
         } else {
             run();
         }
     });
-    connect(download.get(), &Net::Request::failed, this, &PrismUpdaterApp::downloadError);
+    connect(download.get(), &Net::Request::failed, this, [this](QString reason) {
+        qWarning() << "GitHub REST API failed (" << reason << "), falling back to Atom feed...";
+        loadReleaseListFromAtomFeed();
+    });
 
     m_current_task.reset(download);
     connect(download.get(), &Net::Request::finished, this,
             [this]() { qDebug() << "Download" << m_current_task->getUid().toString() << "finished"; });
 
     QCoreApplication::processEvents();
-
     QMetaObject::invokeMethod(download.get(), &Task::start, Qt::QueuedConnection);
+}
+
+void PrismUpdaterApp::loadReleaseListFromAtomFeed()
+{
+    m_currentFetchTier = UpdateFetchTier::AtomFeed;
+    auto atom_url = QString("https://github.com/%1/%2/releases.atom").arg(m_repoOwner, m_repoName);
+    qDebug() << "Fetching release list via GitHub Atom feed from" << atom_url;
+
+    auto [download, response] = Net::Request::makeByteArray(atom_url);
+    download->setNetwork(m_network.get());
+    m_current_url = atom_url;
+
+    auto headers = std::make_unique<Net::RawHeaderProxy>();
+    headers->addHeaders({
+        { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
+        { "Accept", "application/atom+xml, text/xml" }
+    });
+    download->addHeaderProxy(std::move(headers));
+
+    connect(download.get(), &Net::Request::succeeded, this, [this, response]() {
+        auto numFound = parseAtomFeed(response);
+        if (!numFound || numFound.value() == 0) {
+            fail("Failed to parse releases from GitHub Atom feed");
+        } else {
+            qDebug() << "Successfully loaded" << m_releases.length() << "releases via GitHub Atom feed";
+            run();
+        }
+    });
+    connect(download.get(), &Net::Request::failed, this, &PrismUpdaterApp::downloadError);
+
+    m_current_task.reset(download);
+    QCoreApplication::processEvents();
+    QMetaObject::invokeMethod(download.get(), &Task::start, Qt::QueuedConnection);
+}
+
+Result<int> PrismUpdaterApp::parseAtomFeed(const QByteArray* response)
+{
+    if (response->isEmpty()) {
+        return 0;
+    }
+    QXmlStreamReader xml(*response);
+    int numReleases = 0;
+    while (!xml.atEnd() && !xml.hasError()) {
+        auto token = xml.readNext();
+        if (token == QXmlStreamReader::StartElement && xml.name().compare(QLatin1String("entry"), Qt::CaseInsensitive) == 0) {
+            GitHubRelease release = {};
+            while (!(xml.tokenType() == QXmlStreamReader::EndElement && xml.name().compare(QLatin1String("entry"), Qt::CaseInsensitive) == 0) && !xml.atEnd()) {
+                xml.readNext();
+                if (xml.tokenType() == QXmlStreamReader::StartElement) {
+                    auto tagName = xml.name();
+                    if (tagName.compare(QLatin1String("title"), Qt::CaseInsensitive) == 0) {
+                        release.name = xml.readElementText();
+                    } else if (tagName.compare(QLatin1String("id"), Qt::CaseInsensitive) == 0) {
+                        auto idStr = xml.readElementText();
+                        auto parts = idStr.split('/');
+                        if (!parts.isEmpty()) {
+                            release.tag_name = parts.last();
+                        }
+                    } else if (tagName.compare(QLatin1String("updated"), Qt::CaseInsensitive) == 0) {
+                        release.created_at = QDateTime::fromString(xml.readElementText(), Qt::ISODate);
+                        release.published_at = release.created_at;
+                    } else if (tagName.compare(QLatin1String("content"), Qt::CaseInsensitive) == 0) {
+                        release.body = xml.readElementText();
+                    }
+                }
+            }
+            if (!release.tag_name.isEmpty()) {
+                QString cleanTag = release.tag_name;
+                if (cleanTag.startsWith('v') || cleanTag.startsWith('V')) {
+                    cleanTag.remove(0, 1);
+                }
+                release.version = Version(cleanTag);
+                release.draft = false;
+                release.prerelease = release.tag_name.contains('-') || release.tag_name.contains("beta", Qt::CaseInsensitive) || release.tag_name.contains("rc", Qt::CaseInsensitive);
+
+                auto makeAsset = [&](const QString& filename) {
+                    GitHubReleaseAsset asset;
+                    asset.name = filename;
+                    asset.browser_download_url = QString("https://github.com/%1/%2/releases/download/%3/%4")
+                                                    .arg(m_repoOwner, m_repoName, release.tag_name, filename);
+                    asset.content_type = filename.endsWith(".exe") ? "application/x-msdos-program" : "application/zip";
+                    release.assets.append(asset);
+                };
+
+                makeAsset(QString("PrismLauncher-Windows-MSVC-Setup-%1.exe").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Windows-MSVC-Portable-%1.zip").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Windows-MSVC-arm64-Setup-%1.exe").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Windows-MSVC-arm64-Portable-%1.zip").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Windows-MinGW-w64-Setup-%1.exe").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Windows-MinGW-w64-Portable-%1.zip").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Linux-x86_64-%1.AppImage").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Linux-aarch64-%1.AppImage").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Linux-Qt6-Portable-%1.tar.gz").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-Linux-aarch64-Qt6-Portable-%1.tar.gz").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-macOS-%1.dmg").arg(release.tag_name));
+                makeAsset(QString("PrismLauncher-macOS-%1.zip").arg(release.tag_name));
+
+                m_releases.append(release);
+                numReleases++;
+            }
+        }
+    }
+    if (xml.hasError()) {
+        qWarning() << "XML parse error in Atom feed:" << xml.errorString();
+    }
+    return numReleases;
 }
 
 Result<int> PrismUpdaterApp::parseReleasePage(const QByteArray* response)

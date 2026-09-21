@@ -796,6 +796,8 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("SkipModpackUpdatePrompt", false);
         m_settings->registerSetting("ShowModIncompat", false);
         m_settings->registerSetting("DownloadGameFilesDuringInstanceCreation", true);
+        m_settings->registerSetting("KeepModBackups", true);
+        m_settings->registerSetting("MaxModBackupsPerMod", 3);
 
         // Minecraft offline player name & skin settings
         m_settings->registerSetting("LastOfflinePlayerName", "");

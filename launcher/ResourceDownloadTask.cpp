@@ -27,6 +27,7 @@
 #include "minecraft/MinecraftInstance.h"
 #include "minecraft/PackProfile.h"
 #include "minecraft/mod/ResourceFolderModel.h"
+#include "minecraft/mod/ModBackupManager.h"
 
 #include "minecraft/mod/ShaderPackFolderModel.h"
 #include "modplatform/ModIndex.h"
@@ -107,9 +108,28 @@ void ResourceDownloadTask::downloadSucceeded()
     m_filesNetJob.reset();
     auto oldName = std::get<0>(to_delete);
     auto oldFilename = std::get<1>(to_delete);
+    auto oldVersion = std::get<2>(to_delete);
 
     if (oldName.isEmpty() || oldFilename == m_pack_version.fileName) {
         return;
+    }
+
+    if (m_pack_model && m_pack_model->instance()) {
+        ModBackupManager backupManager(m_pack_model->instance()->instanceRoot());
+        QString oldFilePath = m_pack_model->dir().filePath(oldFilename);
+        if (!QFileInfo::exists(oldFilePath)) {
+            oldFilePath = m_pack_model->dir().filePath(oldFilename + ".disabled");
+        }
+        QString oldIndexFilePath;
+        if (m_pack && !m_pack->slug.isEmpty()) {
+            oldIndexFilePath = m_pack_model->indexDir().filePath(m_pack->slug + ".pw.toml");
+        }
+        backupManager.createBackup(oldFilePath, oldIndexFilePath,
+                                   m_pack ? m_pack->slug : oldName,
+                                   oldName,
+                                   oldVersion,
+                                   m_pack_version.version,
+                                   getFilename());
     }
 
     m_pack_model->uninstallResource(oldFilename, true);
@@ -142,7 +162,7 @@ void ResourceDownloadTask::downloadProgressChanged(qint64 current, qint64 total)
 
 // This indirection is done so that we don't delete a mod before being sure it was
 // downloaded successfully!
-void ResourceDownloadTask::hasOldResource(const QString& name, const QString& filename)
+void ResourceDownloadTask::hasOldResource(const QString& name, const QString& filename, const QString& oldVersion)
 {
-    to_delete = { name, filename };
+    to_delete = { name, filename, oldVersion };
 }
