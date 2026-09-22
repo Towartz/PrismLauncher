@@ -86,40 +86,10 @@ jobs:
         id: changelog
         working-directory: PrismLauncher-${{ env.VERSION }}
         run: |
-          PREV_TAG=$(git tag -l --sort=-v:refname "v*" | grep -v "^${{ env.VERSION }}$" | head -n 1 || echo "")
-          echo "Previous tag: $PREV_TAG"
-
-          if [ -n "$PREV_TAG" ]; then
-            COMMITS=$(git log "$PREV_TAG"..HEAD --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))")
-            CHANGELOG_HEADER="#### Changes since $PREV_TAG:"
-            COMPARE_LINK="**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ env.VERSION }}"
-          else
-            COMMITS=$(git log -n 30 --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))")
-            CHANGELOG_HEADER="#### Recent Changes:"
-            COMPARE_LINK=""
-          fi
-
-          {
-            echo "body<<EOF"
-            echo "### Prism Launcher ${{ env.VERSION }}"
-            echo ""
-            echo "$CHANGELOG_HEADER"
-            echo "$COMMITS"
-            echo ""
-            if [ -n "$COMPARE_LINK" ]; then
-              echo "$COMPARE_LINK"
-              echo ""
-            fi
-            echo "---"
-            echo "#### Highlights & Features:"
-            echo "- **Discord Rich Presence (RPC)**: Native Discord detection with official Minecraft Java game profile (\`1402418491272986635\`), elapsed game time, instance details, and player avatar status."
-            echo "- **Updater Bug Fixes**: Accurate version comparison, stripping channel suffixes, and multi-tier Fastly CDN fallback."
-            echo "- **Offline Account Skin Visibility**: Full skin visibility for offline accounts in singleplayer and LAN worlds with CustomSkinLoader / SkinsRestorer integration."
-            echo "- **Skin Sharing & Cloud Upload**: Built-in 1-click \`/skin\` copy and Mineskin/Catbox cloud texture upload."
-            echo ""
-            echo "**Public Downloads:** Any user can download the installer or portable packages below without needing a GitHub account."
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          python3 .github/scripts/generate_changelog.py \
+            --curr-tag "${{ env.VERSION }}" \
+            --repo "${{ github.repository }}" \
+            --github-output "$GITHUB_OUTPUT"
 
       - name: Create release
         id: create_release
