@@ -731,7 +731,12 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("DiscordRPCShowVersion", true);
         m_settings->registerSetting("DiscordRPCShowModLoader", true);
         m_settings->registerSetting("DiscordRPCShowGameState", true);
-        m_settings->registerSetting("DiscordRPCShowServerAddress", true);
+        m_settings->registerSetting("DiscordRPCShowServerAddress", false);
+        m_settings->registerSetting("DiscordRPCServerPrivacyMigrated", false);
+        if (!m_settings->get("DiscordRPCServerPrivacyMigrated").toBool()) {
+            m_settings->set("DiscordRPCShowServerAddress", false);
+            m_settings->set("DiscordRPCServerPrivacyMigrated", true);
+        }
         m_settings->registerSetting("DiscordRPCProcessDetection", true);
 
         // Language

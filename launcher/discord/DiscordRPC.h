@@ -37,6 +37,13 @@ struct DiscordActivity {
     QString smallImage;
     QString smallText;
     qint64 processId = 0;
+
+    bool operator==(const DiscordActivity& other) const
+    {
+        return details == other.details && state == other.state && startTimestamp == other.startTimestamp &&
+               largeImage == other.largeImage && largeText == other.largeText && smallImage == other.smallImage &&
+               smallText == other.smallText && processId == other.processId;
+    }
 };
 
 class DiscordRPC : public QObject {
@@ -78,6 +85,7 @@ class DiscordRPC : public QObject {
     void onReadyRead();
     void onErrorOccurred(QLocalSocket::LocalSocketError socketError);
     void onReconnectTimeout();
+    void pollGameWindow();
 
    private:
     void attemptConnection();
@@ -88,14 +96,22 @@ class DiscordRPC : public QObject {
     void rebuildActivity();
     QString resolvePipePath(int index) const;
     QString getEffectiveClientId() const;
+    static QString sanitizeServerAddress(const QString& rawAddress);
 
     QLocalSocket* m_socket = nullptr;
     QTimer* m_reconnectTimer = nullptr;
     QTimer* m_ipcDelayTimer = nullptr;
+    QTimer* m_windowPollTimer = nullptr;
     QByteArray m_receiveBuffer;
     DiscordActivity m_currentActivity;
+    DiscordActivity m_lastSentActivity;
+    bool m_hasSentActivity = false;
     bool m_hasActiveActivity = false;
     bool m_ipcDelayedUntilWindow = false;
+    bool m_windowDetected = false;
+    qint64 m_windowDetectedTimestamp = 0;
+    quintptr m_cachedWindowHandle = 0;
+    bool m_isLanServer = false;
     bool m_ready = false;
     int m_pipeIndex = 0;
     quint64 m_nonce = 0;
