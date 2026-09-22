@@ -730,6 +730,8 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         m_settings->registerSetting("DiscordRPCShowInstanceName", true);
         m_settings->registerSetting("DiscordRPCShowVersion", true);
         m_settings->registerSetting("DiscordRPCShowModLoader", true);
+        m_settings->registerSetting("DiscordRPCShowGameState", true);
+        m_settings->registerSetting("DiscordRPCShowServerAddress", true);
         m_settings->registerSetting("DiscordRPCProcessDetection", true);
 
         // Language

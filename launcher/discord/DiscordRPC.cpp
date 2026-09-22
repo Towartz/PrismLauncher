@@ -25,6 +25,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRegularExpression>
 
 #include "Application.h"
 #include "minecraft/MinecraftInstance.h"
@@ -270,6 +271,14 @@ void DiscordRPC::sendActivityPayload()
 void DiscordRPC::clearActivity()
 {
     m_hasActiveActivity = false;
+    m_inGameState = InGameState::Starting;
+    m_gameStateDetail.clear();
+    m_instanceName.clear();
+    m_mcVersion.clear();
+    m_loaderStr.clear();
+    m_sessionStartTimestamp = 0;
+    m_gamePid = 0;
+
     if (m_reconnectTimer) {
         m_reconnectTimer->stop();
     }
@@ -304,65 +313,205 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
         return;
     }
 
-    QString mcVersion;
-    if (auto* profile = mcInstance->getPackProfile()) {
-        mcVersion = profile->getComponentVersion("net.minecraft");
-    }
+    m_instanceName = instance->name();
+    m_gamePid = pid;
+    m_sessionStartTimestamp = QDateTime::currentSecsSinceEpoch();
+    m_inGameState = InGameState::Starting;
+    m_gameStateDetail.clear();
 
-    QString loaderStr;
+    m_mcVersion.clear();
+    m_loaderStr.clear();
+
     if (auto* profile = mcInstance->getPackProfile()) {
+        m_mcVersion = profile->getComponentVersion("net.minecraft");
         auto fabricVer = profile->getComponentVersion("net.fabricmc.fabric-loader");
         auto neoforgeVer = profile->getComponentVersion("net.neoforged.neoforge");
         auto forgeVer = profile->getComponentVersion("net.minecraftforge");
         auto quiltVer = profile->getComponentVersion("org.quiltmc.quilt-loader");
 
         if (!fabricVer.isEmpty()) {
-            loaderStr = QString("Fabric %1").arg(fabricVer);
+            m_loaderStr = QString("Fabric %1").arg(fabricVer);
         } else if (!neoforgeVer.isEmpty()) {
-            loaderStr = QString("NeoForge %1").arg(neoforgeVer);
+            m_loaderStr = QString("NeoForge %1").arg(neoforgeVer);
         } else if (!forgeVer.isEmpty()) {
-            loaderStr = QString("Forge %1").arg(forgeVer);
+            m_loaderStr = QString("Forge %1").arg(forgeVer);
         } else if (!quiltVer.isEmpty()) {
-            loaderStr = QString("Quilt %1").arg(quiltVer);
+            m_loaderStr = QString("Quilt %1").arg(quiltVer);
         }
+    }
+
+    m_hasActiveActivity = true;
+    rebuildActivity();
+    if (!m_ready) {
+        attemptConnection();
+    }
+}
+
+void DiscordRPC::rebuildActivity()
+{
+    if (!m_hasActiveActivity) {
+        return;
     }
 
     bool showInstanceName = APPLICATION->settings()->get("DiscordRPCShowInstanceName").toBool();
     bool showVersion = APPLICATION->settings()->get("DiscordRPCShowVersion").toBool();
     bool showLoader = APPLICATION->settings()->get("DiscordRPCShowModLoader").toBool();
+    bool showGameState = APPLICATION->settings()->get("DiscordRPCShowGameState").toBool();
+    bool showServerAddress = APPLICATION->settings()->get("DiscordRPCShowServerAddress").toBool();
 
     DiscordActivity activity;
-    activity.processId = pid;
-    activity.startTimestamp = QDateTime::currentSecsSinceEpoch();
+    activity.processId = m_gamePid;
+    activity.startTimestamp = m_sessionStartTimestamp;
 
     QString versionText;
-    if (showVersion && !mcVersion.isEmpty()) {
-        versionText = QString("Minecraft %1").arg(mcVersion);
+    if (showVersion && !m_mcVersion.isEmpty()) {
+        versionText = QString("Minecraft %1").arg(m_mcVersion);
     } else {
         versionText = "Minecraft";
     }
 
-    if (showInstanceName && !instance->name().isEmpty()) {
-        activity.details = instance->name();
-        if (showLoader && !loaderStr.isEmpty()) {
-            activity.state = QString("%1 (%2)").arg(versionText, loaderStr);
-        } else {
-            activity.state = versionText;
+    QString infoText = versionText;
+    if (showLoader && !m_loaderStr.isEmpty()) {
+        infoText = QString("%1 (%2)").arg(versionText, m_loaderStr);
+    }
+
+    if (showGameState) {
+        switch (m_inGameState) {
+            case InGameState::Starting:
+                activity.details = showInstanceName && !m_instanceName.isEmpty() ? m_instanceName : versionText;
+                activity.state = "Starting up...";
+                break;
+            case InGameState::MainMenu:
+                activity.details = showInstanceName && !m_instanceName.isEmpty() ? m_instanceName : versionText;
+                activity.state = "In Main Menu";
+                break;
+            case InGameState::Singleplayer:
+                if (!m_gameStateDetail.isEmpty()) {
+                    activity.details = QString("Singleplayer (%1)").arg(m_gameStateDetail);
+                } else {
+                    activity.details = "Playing Singleplayer";
+                }
+                activity.state = showInstanceName && !m_instanceName.isEmpty() ? m_instanceName : infoText;
+                break;
+            case InGameState::Multiplayer:
+                if (showServerAddress && !m_gameStateDetail.isEmpty()) {
+                    activity.details = QString("Playing on %1").arg(m_gameStateDetail);
+                } else {
+                    activity.details = "Playing Multiplayer";
+                }
+                activity.state = showInstanceName && !m_instanceName.isEmpty() ? m_instanceName : infoText;
+                break;
+            case InGameState::Realms:
+                activity.details = "Playing on Realms";
+                activity.state = showInstanceName && !m_instanceName.isEmpty() ? m_instanceName : infoText;
+                break;
         }
     } else {
-        activity.details = versionText;
-        if (showLoader && !loaderStr.isEmpty()) {
-            activity.state = QString("Playing %1").arg(loaderStr);
+        if (showInstanceName && !m_instanceName.isEmpty()) {
+            activity.details = m_instanceName;
+            activity.state = infoText;
         } else {
-            activity.state = "Playing Java Edition";
+            activity.details = versionText;
+            if (showLoader && !m_loaderStr.isEmpty()) {
+                activity.state = QString("Playing %1").arg(m_loaderStr);
+            } else {
+                activity.state = "Playing Java Edition";
+            }
         }
     }
 
-    if (!mcVersion.isEmpty()) {
-        activity.largeText = QString("Minecraft %1").arg(mcVersion);
+    if (!m_mcVersion.isEmpty()) {
+        activity.largeText = infoText;
     } else {
         activity.largeText = "Minecraft: Java Edition";
     }
 
-    setActivity(activity);
+    m_currentActivity = activity;
+    if (m_ready) {
+        sendActivityPayload();
+    }
+}
+
+void DiscordRPC::updateInGameState(InGameState state, const QString& detail)
+{
+    if (m_inGameState == state && m_gameStateDetail == detail) {
+        return;
+    }
+    m_inGameState = state;
+    m_gameStateDetail = detail;
+    rebuildActivity();
+}
+
+void DiscordRPC::handleLogLines(const QStringList& lines)
+{
+    if (!m_hasActiveActivity || !APPLICATION->settings()->get("DiscordRPCShowGameState").toBool()) {
+        return;
+    }
+
+    static const QRegularExpression reConnect(
+        QStringLiteral(R"((?:Connecting to|Connecting to server)\s+([a-zA-Z0-9.-]+)(?:,\s*(\d+))?)"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reRealms(
+        QStringLiteral(R"(Connecting to realms|RealmsClient)"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reSingleplayer(
+        QStringLiteral(R"(Starting integrated minecraft server|Loaded \d+ advancements)"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reDimension(
+        QStringLiteral(R"(Changing to dimension minecraft:([a-z_]+))"),
+        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reMainMenu(
+        QStringLiteral(R"(Backend library initialized|Stopping integrated server|Disconnected from server|Disconnecting from server|Lost connection: Disconnected)"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    for (const auto& line : lines) {
+        if (line.isEmpty()) {
+            continue;
+        }
+
+        // Realms
+        if (reRealms.match(line).hasMatch()) {
+            updateInGameState(InGameState::Realms);
+            continue;
+        }
+
+        // Multiplayer
+        auto matchConnect = reConnect.match(line);
+        if (matchConnect.hasMatch()) {
+            QString host = matchConnect.captured(1).trimmed();
+            if (!host.isEmpty() && host.compare("realms", Qt::CaseInsensitive) != 0) {
+                updateInGameState(InGameState::Multiplayer, host);
+                continue;
+            }
+        }
+
+        // Singleplayer
+        if (reSingleplayer.match(line).hasMatch()) {
+            updateInGameState(InGameState::Singleplayer);
+            continue;
+        }
+
+        // Dimension
+        auto matchDim = reDimension.match(line);
+        if (matchDim.hasMatch()) {
+            QString dim = matchDim.captured(1);
+            if (dim == "the_nether") {
+                dim = "The Nether";
+            } else if (dim == "the_end") {
+                dim = "The End";
+            } else {
+                dim = "Overworld";
+            }
+            if (m_inGameState == InGameState::Singleplayer) {
+                updateInGameState(InGameState::Singleplayer, dim);
+            }
+            continue;
+        }
+
+        // Main Menu
+        if (reMainMenu.match(line).hasMatch()) {
+            updateInGameState(InGameState::MainMenu);
+            continue;
+        }
+    }
 }

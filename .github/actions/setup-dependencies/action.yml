@@ -127,6 +127,7 @@ runs:
         modules: qtimageformats qtnetworkauth
         cache: ${{ inputs.build-type == 'Debug' }}
         arch: ${{ inputs.msystem != '' && 'win64_llvm_mingw' || '' }}
+        extra: ${{ runner.os == 'Windows' && '--external 7z' || '' }}
 
     - name: Set Qt6_DIR
       shell: bash

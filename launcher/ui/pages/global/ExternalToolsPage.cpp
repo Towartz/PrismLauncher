@@ -88,6 +88,8 @@ void ExternalToolsPage::loadSettings()
     m_ui->discordShowInstanceNameCheck->setChecked(s->get("DiscordRPCShowInstanceName").toBool());
     m_ui->discordShowVersionCheck->setChecked(s->get("DiscordRPCShowVersion").toBool());
     m_ui->discordShowLoaderCheck->setChecked(s->get("DiscordRPCShowModLoader").toBool());
+    m_ui->discordShowGameStateCheck->setChecked(s->get("DiscordRPCShowGameState").toBool());
+    m_ui->discordShowServerAddressCheck->setChecked(s->get("DiscordRPCShowServerAddress").toBool());
     m_ui->discordProcessDetectionCheck->setChecked(s->get("DiscordRPCProcessDetection").toBool());
     m_ui->discordClientIDEdit->setText(s->get("DiscordRPCClientID").toString());
 
@@ -151,6 +153,8 @@ void ExternalToolsPage::applySettings()
     s->set("DiscordRPCShowInstanceName", m_ui->discordShowInstanceNameCheck->isChecked());
     s->set("DiscordRPCShowVersion", m_ui->discordShowVersionCheck->isChecked());
     s->set("DiscordRPCShowModLoader", m_ui->discordShowLoaderCheck->isChecked());
+    s->set("DiscordRPCShowGameState", m_ui->discordShowGameStateCheck->isChecked());
+    s->set("DiscordRPCShowServerAddress", m_ui->discordShowServerAddressCheck->isChecked());
     s->set("DiscordRPCProcessDetection", m_ui->discordProcessDetectionCheck->isChecked());
     QString clientID = m_ui->discordClientIDEdit->text().trimmed();
     if (clientID.isEmpty()) {

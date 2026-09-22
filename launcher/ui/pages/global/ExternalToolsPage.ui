@@ -361,6 +361,20 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="discordShowGameStateCheck">
+            <property name="text">
+             <string>Show &amp;in-game status (Main Menu, Singleplayer, Multiplayer)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="discordShowServerAddressCheck">
+            <property name="text">
+             <string>Show &amp;server address in multiplayer status</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QCheckBox" name="discordProcessDetectionCheck">
             <property name="text">
              <string>Enable &amp;process detection helper (-DAllowMcDiscordDetection)</string>

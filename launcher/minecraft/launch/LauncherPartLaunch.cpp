@@ -66,6 +66,11 @@ LauncherPartLaunch::LauncherPartLaunch(LaunchTask* parent)
     }
 
     connect(&m_process, &LoggedProcess::log, this, &LauncherPartLaunch::logLines);
+    connect(&m_process, &LoggedProcess::log, this, [](const QStringList& lines, [[maybe_unused]] MessageLevel level) {
+        if (APPLICATION->discordRPC()) {
+            APPLICATION->discordRPC()->handleLogLines(lines);
+        }
+    });
     connect(&m_process, &LoggedProcess::stateChanged, this, &LauncherPartLaunch::on_state);
 }
 

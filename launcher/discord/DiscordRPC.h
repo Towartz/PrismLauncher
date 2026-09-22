@@ -23,6 +23,7 @@
 #include <QLocalSocket>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 
 class BaseInstance;
@@ -52,11 +53,21 @@ class DiscordRPC : public QObject {
         Pong = 4,
     };
 
+    enum class InGameState {
+        Starting,
+        MainMenu,
+        Singleplayer,
+        Multiplayer,
+        Realms,
+    };
+
     explicit DiscordRPC(QObject* parent = nullptr);
     ~DiscordRPC() override;
 
     void setActivityForInstance(BaseInstance* instance, qint64 pid);
     void setActivity(const DiscordActivity& activity);
+    void handleLogLines(const QStringList& lines);
+    void updateInGameState(InGameState state, const QString& detail = QString());
     void clearActivity();
 
     bool isConnected() const { return m_ready; }
@@ -74,6 +85,7 @@ class DiscordRPC : public QObject {
     void sendFrame(Opcode op, const QJsonObject& payload);
     void handleMessage(Opcode op, const QByteArray& data);
     void sendActivityPayload();
+    void rebuildActivity();
     QString resolvePipePath(int index) const;
     QString getEffectiveClientId() const;
 
@@ -85,4 +97,12 @@ class DiscordRPC : public QObject {
     bool m_ready = false;
     int m_pipeIndex = 0;
     quint64 m_nonce = 0;
+
+    InGameState m_inGameState = InGameState::Starting;
+    QString m_gameStateDetail;
+    QString m_instanceName;
+    QString m_mcVersion;
+    QString m_loaderStr;
+    qint64 m_sessionStartTimestamp = 0;
+    qint64 m_gamePid = 0;
 };
