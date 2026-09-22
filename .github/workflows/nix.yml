@@ -132,7 +132,9 @@ jobs:
         env:
           TAG: ${{ github.ref_name }}
           SYSTEM: ${{ matrix.system }}
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
         run: |
-          nix build --no-link --print-out-paths .#prismlauncher \
-            | tee -a "$GITHUB_STEP_SUMMARY" \
-            | xargs cachix pin prismlauncher "$TAG"-"$SYSTEM"
+          out_paths="$(nix build --no-link --print-out-paths .#prismlauncher | tee -a "$GITHUB_STEP_SUMMARY")"
+          if [ -n "$CACHIX_AUTH_TOKEN" ]; then
+            echo "$out_paths" | xargs cachix pin prismlauncher "$TAG"-"$SYSTEM"
+          fi

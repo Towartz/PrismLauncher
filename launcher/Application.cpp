@@ -43,8 +43,8 @@
 #include "Application.h"
 #include "BuildConfig.h"
 
-#include "discord/DiscordRPC.h"
 #include "DataMigrationTask.h"
+#include "discord/DiscordRPC.h"
 #include "java/JavaInstallList.h"
 #include "net/PasteUpload.h"
 #include "tasks/Task.h"

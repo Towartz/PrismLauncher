@@ -64,14 +64,12 @@ QString DiscordRPC::resolvePipePath(int index) const
 #if defined(Q_OS_WIN)
     return QString("discord-ipc-%1").arg(index);
 #else
-    QStringList candidateDirs = {
-        qEnvironmentVariable("XDG_RUNTIME_DIR"),
-        qEnvironmentVariable("XDG_RUNTIME_DIR") + "/app/com.discordapp.Discord",
-        qEnvironmentVariable("TMPDIR"),
-        qEnvironmentVariable("TMP"),
-        qEnvironmentVariable("TEMP"),
-        "/tmp"
-    };
+    QStringList candidateDirs = { qEnvironmentVariable("XDG_RUNTIME_DIR"),
+                                  qEnvironmentVariable("XDG_RUNTIME_DIR") + "/app/com.discordapp.Discord",
+                                  qEnvironmentVariable("TMPDIR"),
+                                  qEnvironmentVariable("TMP"),
+                                  qEnvironmentVariable("TEMP"),
+                                  "/tmp" };
     for (const auto& dir : candidateDirs) {
         if (dir.isEmpty()) {
             continue;
@@ -257,7 +255,8 @@ void DiscordRPC::sendActivityPayload()
     }
 
     QJsonObject argsObj;
-    argsObj["pid"] = m_currentActivity.processId > 0 ? m_currentActivity.processId : static_cast<qint64>(QCoreApplication::applicationPid());
+    argsObj["pid"] =
+        m_currentActivity.processId > 0 ? m_currentActivity.processId : static_cast<qint64>(QCoreApplication::applicationPid());
     argsObj["activity"] = activityObj;
 
     QJsonObject packet;
@@ -285,7 +284,8 @@ void DiscordRPC::clearActivity()
 
     if (m_ready && m_socket && m_socket->state() == QLocalSocket::ConnectedState) {
         QJsonObject argsObj;
-        argsObj["pid"] = m_currentActivity.processId > 0 ? m_currentActivity.processId : static_cast<qint64>(QCoreApplication::applicationPid());
+        argsObj["pid"] =
+            m_currentActivity.processId > 0 ? m_currentActivity.processId : static_cast<qint64>(QCoreApplication::applicationPid());
         argsObj["activity"] = QJsonValue::Null;
 
         QJsonObject packet;
@@ -448,20 +448,17 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
         return;
     }
 
-    static const QRegularExpression reConnect(
-        QStringLiteral(R"((?:Connecting to|Connecting to server)\s+([a-zA-Z0-9.-]+)(?:,\s*(\d+))?)"),
-        QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reRealms(
-        QStringLiteral(R"(Connecting to realms|RealmsClient)"),
-        QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reSingleplayer(
-        QStringLiteral(R"(Starting integrated minecraft server|Loaded \d+ advancements)"),
-        QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reDimension(
-        QStringLiteral(R"(Changing to dimension minecraft:([a-z_]+))"),
-        QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reConnect(QStringLiteral(R"((?:Connecting to|Connecting to server)\s+([a-zA-Z0-9.-]+)(?:,\s*(\d+))?)"),
+                                              QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reRealms(QStringLiteral(R"(Connecting to realms|RealmsClient)"),
+                                             QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reSingleplayer(QStringLiteral(R"(Starting integrated minecraft server|Loaded \d+ advancements)"),
+                                                   QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reDimension(QStringLiteral(R"(Changing to dimension minecraft:([a-z_]+))"),
+                                                QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reMainMenu(
-        QStringLiteral(R"(Backend library initialized|Stopping integrated server|Disconnected from server|Disconnecting from server|Lost connection: Disconnected)"),
+        QStringLiteral(
+            R"(Backend library initialized|Stopping integrated server|Disconnected from server|Disconnecting from server|Lost connection: Disconnected)"),
         QRegularExpression::CaseInsensitiveOption);
 
     for (const auto& line : lines) {

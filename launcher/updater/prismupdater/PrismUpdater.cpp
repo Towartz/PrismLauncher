@@ -84,11 +84,9 @@ QString cleanVersionString(QString ver)
     auto dashIdx = ver.indexOf('-');
     if (dashIdx != -1) {
         auto suffix = ver.mid(dashIdx + 1).toLower();
-        if (suffix == "develop" || suffix == "main" || suffix == "master" ||
-            suffix == "dirty" || suffix == "unknown" || suffix == "stable" ||
-            suffix == "offline" || suffix == "custom" ||
-            (!suffix.startsWith("alpha") && !suffix.startsWith("beta") &&
-             !suffix.startsWith("rc") && !suffix.startsWith("pre"))) {
+        if (suffix == "develop" || suffix == "main" || suffix == "master" || suffix == "dirty" || suffix == "unknown" ||
+            suffix == "stable" || suffix == "offline" || suffix == "custom" ||
+            (!suffix.startsWith("alpha") && !suffix.startsWith("beta") && !suffix.startsWith("rc") && !suffix.startsWith("pre"))) {
             ver = ver.left(dashIdx);
         }
     }
