@@ -43,6 +43,7 @@
 #include "Application.h"
 #include "BuildConfig.h"
 
+#include "discord/DiscordRPC.h"
 #include "DataMigrationTask.h"
 #include "java/JavaInstallList.h"
 #include "net/PasteUpload.h"
@@ -723,6 +724,14 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
         // Editors
         m_settings->registerSetting("JsonEditor", QString());
 
+        // Discord RPC
+        m_settings->registerSetting("DiscordRPCEnabled", true);
+        m_settings->registerSetting("DiscordRPCClientID", QString("1402418491272986635"));
+        m_settings->registerSetting("DiscordRPCShowInstanceName", true);
+        m_settings->registerSetting("DiscordRPCShowVersion", true);
+        m_settings->registerSetting("DiscordRPCShowModLoader", true);
+        m_settings->registerSetting("DiscordRPCProcessDetection", true);
+
         // Language
         m_settings->registerSetting("Language", QString());
         m_settings->registerSetting("UseSystemLocale", false);
@@ -983,6 +992,9 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
 
     // Themes
     m_themeManager = std::make_unique<ThemeManager>();
+
+    // Discord RPC
+    m_discordRPC = std::make_unique<DiscordRPC>(this);
 
 #ifdef Q_OS_MACOS
     // for macOS: getting directory settings will generate URL security-scoped bookmarks if needed and not present

@@ -26,17 +26,18 @@ jobs:
     needs: build_release
     permissions:
       contents: write
-    runs-on: ubuntu-slim
+    runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: "true"
           path: "PrismLauncher-source"
+          fetch-depth: 0
       - name: Download artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
       - name: Grab and store version
         run: |
           tag_name=$(echo ${{ github.ref }} | grep -oE "[^/]+$")
@@ -81,16 +82,56 @@ jobs:
             cd ..
           done
 
+      - name: Generate Changelog from Commits
+        id: changelog
+        working-directory: PrismLauncher-${{ env.VERSION }}
+        run: |
+          PREV_TAG=$(git tag -l --sort=-v:refname "v*" | grep -v "^${{ env.VERSION }}$" | head -n 1 || echo "")
+          echo "Previous tag: $PREV_TAG"
+
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS=$(git log "$PREV_TAG"..HEAD --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))")
+            CHANGELOG_HEADER="#### Changes since $PREV_TAG:"
+            COMPARE_LINK="**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${{ env.VERSION }}"
+          else
+            COMMITS=$(git log -n 30 --pretty=format:"- %s ([%h](https://github.com/${{ github.repository }}/commit/%H))")
+            CHANGELOG_HEADER="#### Recent Changes:"
+            COMPARE_LINK=""
+          fi
+
+          {
+            echo "body<<EOF"
+            echo "### Prism Launcher ${{ env.VERSION }}"
+            echo ""
+            echo "$CHANGELOG_HEADER"
+            echo "$COMMITS"
+            echo ""
+            if [ -n "$COMPARE_LINK" ]; then
+              echo "$COMPARE_LINK"
+              echo ""
+            fi
+            echo "---"
+            echo "#### Highlights & Features:"
+            echo "- **Discord Rich Presence (RPC)**: Native Discord detection with official Minecraft Java game profile (\`1402418491272986635\`), elapsed game time, instance details, and player avatar status."
+            echo "- **Updater Bug Fixes**: Accurate version comparison, stripping channel suffixes, and multi-tier Fastly CDN fallback."
+            echo "- **Offline Account Skin Visibility**: Full skin visibility for offline accounts in singleplayer and LAN worlds with CustomSkinLoader / SkinsRestorer integration."
+            echo "- **Skin Sharing & Cloud Upload**: Built-in 1-click \`/skin\` copy and Mineskin/Catbox cloud texture upload."
+            echo ""
+            echo "**Public Downloads:** Any user can download the installer or portable packages below without needing a GitHub account."
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create release
         id: create_release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag_name: ${{ github.ref }}
           name: Prism Launcher ${{ env.VERSION }}
-          draft: true
+          draft: false
           prerelease: false
           fail_on_unmatched_files: true
+          body: ${{ steps.changelog.outputs.body }}
           files: |
             PrismLauncher-Linux-x86_64.AppImage
             PrismLauncher-Linux-x86_64.AppImage.zsync
@@ -110,3 +151,14 @@ jobs:
             PrismLauncher-macOS-${{ env.VERSION }}.zip
             PrismLauncher-macOS-${{ env.VERSION }}.dmg
             PrismLauncher-${{ env.VERSION }}.tar.gz
+
+      - name: Update releases.json cache
+        working-directory: PrismLauncher-${{ env.VERSION }}
+        run: |
+          gh api repos/${{ github.repository }}/releases > releases.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add releases.json
+          git diff-index --quiet HEAD || (git commit -m "chore: update releases.json cache [skip ci]" && git push origin develop)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -327,6 +327,78 @@
         </widget>
        </item>
        <item>
+        <widget class="QGroupBox" name="discordBox">
+         <property name="title">
+          <string>&amp;Discord Integration</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_discord">
+          <item>
+           <widget class="QCheckBox" name="discordRPCEnableCheck">
+            <property name="text">
+             <string>&amp;Enable Discord Rich Presence (RPC)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="discordShowInstanceNameCheck">
+            <property name="text">
+             <string>Show &amp;instance name in status</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="discordShowVersionCheck">
+            <property name="text">
+             <string>Show &amp;Minecraft version in status</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="discordShowLoaderCheck">
+            <property name="text">
+             <string>Show &amp;mod loader in status (Fabric, Forge, etc.)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="discordProcessDetectionCheck">
+            <property name="text">
+             <string>Enable &amp;process detection helper (-DAllowMcDiscordDetection)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_discordAppId">
+            <item>
+             <widget class="QLabel" name="discordClientIDLabel">
+              <property name="text">
+               <string>Application &amp;ID:</string>
+              </property>
+              <property name="buddy">
+               <cstring>discordClientIDEdit</cstring>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="discordClientIDEdit">
+              <property name="placeholderText">
+               <string>1402418491272986635</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="discordResetClientIDBtn">
+              <property name="text">
+               <string>&amp;Reset to Default</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Vertical</enum>

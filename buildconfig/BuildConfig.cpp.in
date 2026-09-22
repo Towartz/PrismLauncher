@@ -140,8 +140,13 @@ QString Config::printableVersionString() const
 {
     QString vstr = versionString();
 
+    QString cleanGitTag = GIT_TAG;
+    if (cleanGitTag.startsWith('v') || cleanGitTag.startsWith('V')) {
+        cleanGitTag.remove(0, 1);
+    }
+
     // If the build is not a main release, append the channel
-    if (VERSION_CHANNEL != "stable" && GIT_TAG != vstr) {
+    if (VERSION_CHANNEL != "stable" && cleanGitTag != vstr) {
         vstr += "-" + VERSION_CHANNEL;
     }
     return vstr;

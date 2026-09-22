@@ -40,6 +40,7 @@
 
 #include "Application.h"
 #include "FileSystem.h"
+#include "discord/DiscordRPC.h"
 #include "launch/LaunchTask.h"
 #include "minecraft/MinecraftInstance.h"
 
@@ -115,6 +116,9 @@ void LauncherPartLaunch::executeTask()
     natPath = FS::getPathNameInLocal8bit(natPath);
 #endif
     args << "-Djava.library.path=" + natPath;
+    if (APPLICATION->settings()->get("DiscordRPCProcessDetection").toBool()) {
+        args << "-DAllowMcDiscordDetection=net.minecraft.client.main.Main";
+    }
 
     args << "-cp";
 #ifdef Q_OS_WIN
@@ -170,12 +174,18 @@ void LauncherPartLaunch::on_state(LoggedProcess::State state)
         }
         case LoggedProcess::Aborted:
         case LoggedProcess::Crashed: {
+            if (APPLICATION->discordRPC()) {
+                APPLICATION->discordRPC()->clearActivity();
+            }
             m_parent->setPid(-1);
             m_parent->instance()->setMinecraftRunning(false);
             emitFailed(tr("Game crashed."));
             return;
         }
         case LoggedProcess::Finished: {
+            if (APPLICATION->discordRPC()) {
+                APPLICATION->discordRPC()->clearActivity();
+            }
             auto* instance = m_parent->instance();
             if (instance->settings()->get("CloseAfterLaunch").toBool()) {
                 APPLICATION->showMainWindow();
@@ -198,6 +208,9 @@ void LauncherPartLaunch::on_state(LoggedProcess::State state)
         case LoggedProcess::Running:
             emit logLine(QString("Minecraft process ID: %1\n\n").arg(m_process.processId()), MessageLevel::Launcher);
             m_parent->setPid(m_process.processId());
+            if (APPLICATION->discordRPC()) {
+                APPLICATION->discordRPC()->setActivityForInstance(m_parent->instance(), m_process.processId());
+            }
             // send the launch script to the launcher part
             m_process.write(m_launchScript.toUtf8());
 

@@ -75,6 +75,27 @@ void appDebugOutput(QtMsgType type, const QMessageLogContext& context, const QSt
     }
 }
 
+namespace {
+QString cleanVersionString(QString ver)
+{
+    if (ver.startsWith('v') || ver.startsWith('V')) {
+        ver.remove(0, 1);
+    }
+    auto dashIdx = ver.indexOf('-');
+    if (dashIdx != -1) {
+        auto suffix = ver.mid(dashIdx + 1).toLower();
+        if (suffix == "develop" || suffix == "main" || suffix == "master" ||
+            suffix == "dirty" || suffix == "unknown" || suffix == "stable" ||
+            suffix == "offline" || suffix == "custom" ||
+            (!suffix.startsWith("alpha") && !suffix.startsWith("beta") &&
+             !suffix.startsWith("rc") && !suffix.startsWith("pre"))) {
+            ver = ver.left(dashIdx);
+        }
+    }
+    return ver.trimmed();
+}
+}  // namespace
+
 PrismUpdaterApp::PrismUpdaterApp(int& argc, char** argv) : QApplication(argc, argv)
 {
     setOrganizationName(BuildConfig.LAUNCHER_NAME);
@@ -340,13 +361,20 @@ PrismUpdaterApp::PrismUpdaterApp(int& argc, char** argv) : QApplication(argc, ar
         } else {
             m_prsimVersionChannel = "stable";
         }
+        m_prismVersion = version;
         auto version_parts = version.split('.');
-        m_prismVersionMajor = version_parts.takeFirst().toInt();
-        m_prismVersionMinor = version_parts.takeFirst().toInt();
+        if (!version_parts.isEmpty())
+            m_prismVersionMajor = version_parts.takeFirst().toInt();
+        if (!version_parts.isEmpty())
+            m_prismVersionMinor = version_parts.takeFirst().toInt();
         if (!version_parts.isEmpty())
             m_prismVersionPatch = version_parts.takeFirst().toInt();
         else
             m_prismVersionPatch = 0;
+        if (!version_parts.isEmpty())
+            m_prismVersionBuild = version_parts.takeFirst().toInt();
+        else
+            m_prismVersionBuild = 0;
     }
 
     m_allowPreRelease = parser.isSet("pre-release");
@@ -419,11 +447,12 @@ void PrismUpdaterApp::run()
         return exit(0);
     }
 
-    if (!loadPrismVersionFromExe(m_prismExecutable)) {
-        m_prismVersion = BuildConfig.printableVersionString();
+    if (m_prismVersion.isEmpty() && !loadPrismVersionFromExe(m_prismExecutable)) {
+        m_prismVersion = BuildConfig.versionString();
         m_prismVersionMajor = BuildConfig.VERSION_MAJOR;
         m_prismVersionMinor = BuildConfig.VERSION_MINOR;
         m_prismVersionPatch = BuildConfig.VERSION_PATCH;
+        m_prismVersionBuild = BuildConfig.VERSION_BUILD;
         m_prsimVersionChannel = BuildConfig.VERSION_CHANNEL;
         m_prismGitCommit = BuildConfig.GIT_COMMIT;
     }
@@ -432,7 +461,8 @@ void PrismUpdaterApp::run()
     qDebug() << "Executable reports as:" << m_prismBinaryName << "version:" << m_prismVersion;
     qDebug() << "Version major:" << m_prismVersionMajor;
     qDebug() << "Version minor:" << m_prismVersionMinor;
-    qDebug() << "Version minor:" << m_prismVersionPatch;
+    qDebug() << "Version patch:" << m_prismVersionPatch;
+    qDebug() << "Version build:" << m_prismVersionBuild;
     qDebug() << "Version channel:" << m_prsimVersionChannel;
     qDebug() << "Git Commit:" << m_prismGitCommit;
 
@@ -633,13 +663,11 @@ QList<GitHubRelease> PrismUpdaterApp::newerReleases()
     if (localVer.isEmpty()) {
         localVer = BuildConfig.versionString();
     }
-    if (localVer.startsWith('v') || localVer.startsWith('V')) {
-        localVer.remove(0, 1);
-    }
-    auto current_ver = Version(localVer);
+    auto current_ver = Version(cleanVersionString(localVer));
     QList<GitHubRelease> newer;
     for (auto rls : nonDraftReleases()) {
-        if (rls.version > current_ver)
+        auto rls_ver = Version(cleanVersionString(rls.tag_name));
+        if (rls_ver > current_ver)
             newer.append(rls);
     }
     return newer;
@@ -658,7 +686,7 @@ GitHubRelease PrismUpdaterApp::selectRelease()
     if (releases.isEmpty())
         return {};
 
-    SelectReleaseDialog dlg(Version(m_prismVersion), releases);
+    SelectReleaseDialog dlg(Version(cleanVersionString(m_prismVersion)), releases);
     auto result = dlg.exec();
 
     if (result == QDialog::Rejected) {
@@ -1128,7 +1156,6 @@ bool PrismUpdaterApp::loadPrismVersionFromExe(const QString& exe_path)
         return false;
     auto version = first_parts.takeLast().trimmed();
     m_prismBinaryName = first_parts.join(' ').trimmed();
-    m_prismVersion = version;
     if (version.contains('-')) {
         auto index = version.indexOf('-');
         m_prsimVersionChannel = version.mid(index + 1);
@@ -1136,6 +1163,7 @@ bool PrismUpdaterApp::loadPrismVersionFromExe(const QString& exe_path)
     } else {
         m_prsimVersionChannel = "stable";
     }
+    m_prismVersion = version;
     auto version_parts = version.split('.');
     if (version_parts.length() < 2)
         return false;
@@ -1145,6 +1173,10 @@ bool PrismUpdaterApp::loadPrismVersionFromExe(const QString& exe_path)
         m_prismVersionPatch = version_parts.takeFirst().toInt();
     else
         m_prismVersionPatch = 0;
+    if (!version_parts.isEmpty())
+        m_prismVersionBuild = version_parts.takeFirst().toInt();
+    else
+        m_prismVersionBuild = 0;
     m_prismGitCommit = lines.takeFirst().simplified();
     return true;
 }
@@ -1376,10 +1408,7 @@ Result<int> PrismUpdaterApp::parseReleasePage(const QByteArray* response)
         TRY_INTO(release.draft, Json::requireBoolean(obj, "draft"))
         TRY_INTO(release.prerelease, Json::requireBoolean(obj, "prerelease"))
         release.body = obj["body"].toString();
-        QString cleanTag = release.tag_name;
-        if (cleanTag.startsWith('v') || cleanTag.startsWith('V')) {
-            cleanTag.remove(0, 1);
-        }
+        QString cleanTag = cleanVersionString(release.tag_name);
         release.version = Version(cleanTag);
 
         TRY_INTO(const auto& releaseAssetsObj, Json::requireArray(obj, "assets"))
@@ -1410,7 +1439,9 @@ GitHubRelease PrismUpdaterApp::getLatestRelease()
             continue;
         if (release.prerelease && !m_allowPreRelease)
             continue;
-        if (!latest.isValid() || (release.version > latest.version)) {
+        auto relVer = Version(cleanVersionString(release.tag_name));
+        auto latestVer = latest.isValid() ? Version(cleanVersionString(latest.tag_name)) : Version();
+        if (!latest.isValid() || (relVer > latestVer)) {
             latest = release;
         }
     }
@@ -1423,11 +1454,9 @@ bool PrismUpdaterApp::needUpdate(const GitHubRelease& release)
     if (localVer.isEmpty()) {
         localVer = BuildConfig.versionString();
     }
-    if (localVer.startsWith('v') || localVer.startsWith('V')) {
-        localVer.remove(0, 1);
-    }
-    auto current_ver = Version(localVer);
-    return current_ver < release.version;
+    auto current_ver = Version(cleanVersionString(localVer));
+    auto release_ver = Version(cleanVersionString(release.tag_name));
+    return current_ver < release_ver;
 }
 
 void PrismUpdaterApp::downloadError(QString reason)

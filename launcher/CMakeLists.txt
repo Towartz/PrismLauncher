@@ -41,6 +41,10 @@ set(CORE_SOURCES
     PSaveFile.h
     EnumWrapper.h
 
+    # Discord RPC
+    discord/DiscordRPC.h
+    discord/DiscordRPC.cpp
+
     # Basic instance manipulation tasks (derived from InstanceTask)
     InstanceCopyPrefs.h
     InstanceCopyPrefs.cpp

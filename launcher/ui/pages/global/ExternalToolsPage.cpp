@@ -49,6 +49,7 @@
 #include "Json.h"
 #include "settings/SettingsObject.h"
 #include "tools/BaseProfiler.h"
+#include "discord/DiscordRPC.h"
 
 ExternalToolsPage::ExternalToolsPage(QWidget* parent) : QWidget(parent), m_ui(new Ui::ExternalToolsPage)
 {
@@ -81,6 +82,14 @@ void ExternalToolsPage::loadSettings()
 
     // Editors
     m_ui->jsonEditorTextBox->setText(s->get("JsonEditor").toString());
+
+    // Discord Integration
+    m_ui->discordRPCEnableCheck->setChecked(s->get("DiscordRPCEnabled").toBool());
+    m_ui->discordShowInstanceNameCheck->setChecked(s->get("DiscordRPCShowInstanceName").toBool());
+    m_ui->discordShowVersionCheck->setChecked(s->get("DiscordRPCShowVersion").toBool());
+    m_ui->discordShowLoaderCheck->setChecked(s->get("DiscordRPCShowModLoader").toBool());
+    m_ui->discordProcessDetectionCheck->setChecked(s->get("DiscordRPCProcessDetection").toBool());
+    m_ui->discordClientIDEdit->setText(s->get("DiscordRPCClientID").toString());
 
     // World Tools
     m_ui->worldToolTree->clear();
@@ -136,6 +145,18 @@ void ExternalToolsPage::applySettings()
         }
     }
     s->set("JsonEditor", jsonEditor);
+
+    // Discord Integration
+    s->set("DiscordRPCEnabled", m_ui->discordRPCEnableCheck->isChecked());
+    s->set("DiscordRPCShowInstanceName", m_ui->discordShowInstanceNameCheck->isChecked());
+    s->set("DiscordRPCShowVersion", m_ui->discordShowVersionCheck->isChecked());
+    s->set("DiscordRPCShowModLoader", m_ui->discordShowLoaderCheck->isChecked());
+    s->set("DiscordRPCProcessDetection", m_ui->discordProcessDetectionCheck->isChecked());
+    QString clientID = m_ui->discordClientIDEdit->text().trimmed();
+    if (clientID.isEmpty()) {
+        clientID = QString::fromLatin1(DiscordRPC::DEFAULT_APPLICATION_ID);
+    }
+    s->set("DiscordRPCClientID", clientID);
 
     // World Tools
     QVariantMap tools;
@@ -258,4 +279,9 @@ bool ExternalToolsPage::apply()
 void ExternalToolsPage::retranslate()
 {
     m_ui->retranslateUi(this);
+}
+
+void ExternalToolsPage::on_discordResetClientIDBtn_clicked()
+{
+    m_ui->discordClientIDEdit->setText(QString::fromLatin1(DiscordRPC::DEFAULT_APPLICATION_ID));
 }

@@ -119,7 +119,7 @@ void PrismExternalUpdater::checkForUpdates(bool triggeredByUser) const
 #endif
 
     QStringList args = { "--check-only", "--dir",           priv->dataDir.absolutePath(),
-                         "--debug",      "--prism-version", BuildConfig.printableVersionString() };
+                         "--debug",      "--prism-version", BuildConfig.versionString() };
     if (APPLICATION && APPLICATION->settings()) {
         auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();
         if (!updateRepo.isEmpty()) {
@@ -368,7 +368,7 @@ void PrismExternalUpdater::performUpdate(const QString& versionTag) const
 #endif
 
     QStringList args = { "--dir",           priv->dataDir.absolutePath(),        "--install-version", versionTag,
-                         "--prism-version", BuildConfig.printableVersionString() };
+                         "--prism-version", BuildConfig.versionString() };
     if (APPLICATION && APPLICATION->settings()) {
         auto updateRepo = APPLICATION->settings()->get("UpdateRepoOverride").toString();
         if (!updateRepo.isEmpty()) {

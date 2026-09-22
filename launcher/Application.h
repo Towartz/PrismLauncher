@@ -73,6 +73,7 @@ class TranslationsModel;
 class ITheme;
 class ThemeManager;
 class IconTheme;
+class DiscordRPC;
 class BaseInstance;
 class MinecraftInstance;
 
@@ -125,6 +126,8 @@ class Application : public QApplication {
     static QIcon logo();
 
     ThemeManager* themeManager() { return m_themeManager.get(); }
+
+    DiscordRPC* discordRPC() const { return m_discordRPC.get(); }
 
     ExternalUpdater* updater() { return m_updater.get(); }
 
@@ -264,6 +267,7 @@ class Application : public QApplication {
     std::unique_ptr<GenericPageProvider> m_globalSettingsProvider;
     QSet<QString> m_features;
     std::unique_ptr<ThemeManager> m_themeManager;
+    std::unique_ptr<DiscordRPC> m_discordRPC;
 
     QMap<QString, std::shared_ptr<BaseProfilerFactory>> m_profilers;
 
