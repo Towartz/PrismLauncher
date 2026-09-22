@@ -308,9 +308,6 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
     if (auto* profile = mcInstance->getPackProfile()) {
         mcVersion = profile->getComponentVersion("net.minecraft");
     }
-    if (mcVersion.isEmpty()) {
-        mcVersion = mcInstance->intendedVersion();
-    }
 
     QString loaderStr;
     if (auto* profile = mcInstance->getPackProfile()) {
