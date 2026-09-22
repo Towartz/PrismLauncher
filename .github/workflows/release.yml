@@ -153,12 +153,16 @@ jobs:
             PrismLauncher-${{ env.VERSION }}.tar.gz
 
       - name: Update releases.json cache
+        continue-on-error: true
         working-directory: PrismLauncher-${{ env.VERSION }}
         run: |
-          gh api repos/${{ github.repository }}/releases > releases.json
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop:develop || true
+          git checkout develop || true
+          gh api repos/${{ github.repository }}/releases > releases.json
           git add releases.json
           git diff-index --quiet HEAD || (git commit -m "chore: update releases.json cache [skip ci]" && git push origin develop)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
