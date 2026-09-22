@@ -91,18 +91,22 @@ class DiscordRPC : public QObject {
 
     QLocalSocket* m_socket = nullptr;
     QTimer* m_reconnectTimer = nullptr;
+    QTimer* m_ipcDelayTimer = nullptr;
     QByteArray m_receiveBuffer;
     DiscordActivity m_currentActivity;
     bool m_hasActiveActivity = false;
+    bool m_ipcDelayedUntilWindow = false;
     bool m_ready = false;
     int m_pipeIndex = 0;
     quint64 m_nonce = 0;
 
     InGameState m_inGameState = InGameState::Starting;
     QString m_gameStateDetail;
+    QString m_worldName;
     QString m_instanceName;
     QString m_mcVersion;
     QString m_loaderStr;
+    int m_modCount = 0;
     qint64 m_sessionStartTimestamp = 0;
     qint64 m_gamePid = 0;
 };

@@ -103,6 +103,16 @@ void LauncherPartLaunch::executeTask()
     emit logLine("Java arguments:\n  " + m_parent->censorPrivateInfo(allArgs) + "\n", MessageLevel::Launcher);
 
     auto javaPath = FS::ResolveExecutable(instance->settings()->get("JavaPath").toString());
+    const bool discordProcessDetection = APPLICATION->settings()->get("DiscordRPCProcessDetection").toBool();
+#ifdef Q_OS_WIN
+    if (discordProcessDetection &&
+        (javaPath.endsWith("/java.exe", Qt::CaseInsensitive) || javaPath.endsWith("\\java.exe", Qt::CaseInsensitive))) {
+        QString javawPath = javaPath.left(javaPath.length() - 8) + "javaw.exe";
+        if (QFileInfo::exists(javawPath)) {
+            javaPath = javawPath;
+        }
+    }
+#endif
 
     m_process.setProcessEnvironment(instance->createLaunchEnvironment());
 
@@ -120,10 +130,10 @@ void LauncherPartLaunch::executeTask()
 #ifdef Q_OS_WIN
     natPath = FS::getPathNameInLocal8bit(natPath);
 #endif
-    args << "-Djava.library.path=" + natPath;
-    if (APPLICATION->settings()->get("DiscordRPCProcessDetection").toBool()) {
-        args << "-DAllowMcDiscordDetection=net.minecraft.client.main.Main";
+    if (discordProcessDetection) {
+        args.prepend("-DAllowMcDiscordDetection=net.minecraft.client.main.Main");
     }
+    args << "-Djava.library.path=" + natPath;
 
     args << "-cp";
 #ifdef Q_OS_WIN
@@ -136,6 +146,9 @@ void LauncherPartLaunch::executeTask()
     args << classPath.join(':');
 #endif
     args << "org.prismlauncher.EntryPoint";
+    if (discordProcessDetection) {
+        args << "net.minecraft.client.main.Main";
+    }
 
     qDebug() << args.join(' ');
 

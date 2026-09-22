@@ -21,6 +21,7 @@
 #include <QCoreApplication>
 #include <QDataStream>
 #include <QDebug>
+#include <QDir>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -37,12 +38,25 @@ DiscordRPC::DiscordRPC(QObject* parent) : QObject(parent)
     m_socket = new QLocalSocket(this);
     m_reconnectTimer = new QTimer(this);
     m_reconnectTimer->setSingleShot(false);
+    m_ipcDelayTimer = new QTimer(this);
+    m_ipcDelayTimer->setSingleShot(true);
 
     connect(m_socket, &QLocalSocket::connected, this, &DiscordRPC::onConnected);
     connect(m_socket, &QLocalSocket::disconnected, this, &DiscordRPC::onDisconnected);
     connect(m_socket, &QLocalSocket::readyRead, this, &DiscordRPC::onReadyRead);
     connect(m_socket, &QLocalSocket::errorOccurred, this, &DiscordRPC::onErrorOccurred);
     connect(m_reconnectTimer, &QTimer::timeout, this, &DiscordRPC::onReconnectTimeout);
+    connect(m_ipcDelayTimer, &QTimer::timeout, this, [this]() {
+        if (m_hasActiveActivity) {
+            m_ipcDelayedUntilWindow = false;
+            if (!m_ready) {
+                m_pipeIndex = 0;
+                attemptConnection();
+            } else {
+                sendActivityPayload();
+            }
+        }
+    });
 }
 
 DiscordRPC::~DiscordRPC()
@@ -270,16 +284,22 @@ void DiscordRPC::sendActivityPayload()
 void DiscordRPC::clearActivity()
 {
     m_hasActiveActivity = false;
+    m_ipcDelayedUntilWindow = false;
     m_inGameState = InGameState::Starting;
     m_gameStateDetail.clear();
+    m_worldName.clear();
     m_instanceName.clear();
     m_mcVersion.clear();
     m_loaderStr.clear();
+    m_modCount = 0;
     m_sessionStartTimestamp = 0;
     m_gamePid = 0;
 
     if (m_reconnectTimer) {
         m_reconnectTimer->stop();
+    }
+    if (m_ipcDelayTimer) {
+        m_ipcDelayTimer->stop();
     }
 
     if (m_ready && m_socket && m_socket->state() == QLocalSocket::ConnectedState) {
@@ -318,9 +338,11 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
     m_sessionStartTimestamp = QDateTime::currentSecsSinceEpoch();
     m_inGameState = InGameState::Starting;
     m_gameStateDetail.clear();
+    m_worldName.clear();
 
     m_mcVersion.clear();
     m_loaderStr.clear();
+    m_modCount = QDir(mcInstance->modsRoot()).entryList({ "*.jar" }, QDir::Files).size();
 
     if (auto* profile = mcInstance->getPackProfile()) {
         m_mcVersion = profile->getComponentVersion("net.minecraft");
@@ -340,10 +362,27 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
         }
     }
 
+    if (!m_loaderStr.isEmpty() && m_modCount > 0) {
+        m_loaderStr = QString("%1 • %2 %3").arg(m_loaderStr).arg(m_modCount).arg(m_modCount == 1 ? "mod" : "mods");
+    } else if (m_loaderStr.isEmpty() && m_modCount > 0) {
+        m_loaderStr = QString("%1 %2").arg(m_modCount).arg(m_modCount == 1 ? "mod" : "mods");
+    }
+
     m_hasActiveActivity = true;
-    rebuildActivity();
-    if (!m_ready) {
-        attemptConnection();
+
+    // When native Discord process detection is enabled, let Discord's 5s RunningGameStore scanner
+    // detect javaw.exe's GLFW window first so Official Play History (1402418491272986635) is permanently logged
+    // before overlaying IPC Rich Presence.
+    if (APPLICATION->settings()->get("DiscordRPCProcessDetection").toBool()) {
+        m_ipcDelayedUntilWindow = true;
+        rebuildActivity();
+        m_ipcDelayTimer->start(15000);
+    } else {
+        m_ipcDelayedUntilWindow = false;
+        rebuildActivity();
+        if (!m_ready) {
+            attemptConnection();
+        }
     }
 }
 
@@ -386,7 +425,11 @@ void DiscordRPC::rebuildActivity()
                 activity.state = "In Main Menu";
                 break;
             case InGameState::Singleplayer:
-                if (!m_gameStateDetail.isEmpty()) {
+                if (!m_worldName.isEmpty() && !m_gameStateDetail.isEmpty()) {
+                    activity.details = QString("Singleplayer: %1 (%2)").arg(m_worldName, m_gameStateDetail);
+                } else if (!m_worldName.isEmpty()) {
+                    activity.details = QString("Singleplayer: %1").arg(m_worldName);
+                } else if (!m_gameStateDetail.isEmpty()) {
                     activity.details = QString("Singleplayer (%1)").arg(m_gameStateDetail);
                 } else {
                     activity.details = "Playing Singleplayer";
@@ -427,7 +470,7 @@ void DiscordRPC::rebuildActivity()
     }
 
     m_currentActivity = activity;
-    if (m_ready) {
+    if (m_ready && !m_ipcDelayedUntilWindow) {
         sendActivityPayload();
     }
 }
@@ -444,16 +487,20 @@ void DiscordRPC::updateInGameState(InGameState state, const QString& detail)
 
 void DiscordRPC::handleLogLines(const QStringList& lines)
 {
-    if (!m_hasActiveActivity || !APPLICATION->settings()->get("DiscordRPCShowGameState").toBool()) {
+    if (!m_hasActiveActivity) {
         return;
     }
 
+    static const QRegularExpression reWindowInit(QStringLiteral(R"(Backend library initialized|LWJGL Version|OpenAL initialized)"),
+                                                 QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reConnect(QStringLiteral(R"((?:Connecting to|Connecting to server)\s+([a-zA-Z0-9.-]+)(?:,\s*(\d+))?)"),
                                               QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reRealms(QStringLiteral(R"(Connecting to realms|RealmsClient)"),
                                              QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reSingleplayer(QStringLiteral(R"(Starting integrated minecraft server|Loaded \d+ advancements)"),
                                                    QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression reWorldName(QStringLiteral(R"((?:ServerLevel\[([^\]]+)\]|Loading level ['"]([^'"]+)['"]))"),
+                                                QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reDimension(QStringLiteral(R"(Changing to dimension minecraft:([a-z_]+))"),
                                                 QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reMainMenu(
@@ -461,9 +508,33 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
             R"(Backend library initialized|Stopping integrated server|Disconnected from server|Disconnecting from server|Lost connection: Disconnected)"),
         QRegularExpression::CaseInsensitiveOption);
 
+    const bool showGameState = APPLICATION->settings()->get("DiscordRPCShowGameState").toBool();
+
     for (const auto& line : lines) {
         if (line.isEmpty()) {
             continue;
+        }
+
+        // Once Minecraft creates its GLFW window, schedule IPC connection 6s later so Discord's 5s
+        // RunningGameStore loop registers Official Play History (1402418491272986635) first.
+        if (m_ipcDelayedUntilWindow && reWindowInit.match(line).hasMatch()) {
+            m_ipcDelayTimer->start(6000);
+        }
+
+        if (!showGameState) {
+            continue;
+        }
+
+        // Extract Singleplayer World Name
+        auto matchWorld = reWorldName.match(line);
+        if (matchWorld.hasMatch()) {
+            QString world = !matchWorld.captured(1).isEmpty() ? matchWorld.captured(1).trimmed() : matchWorld.captured(2).trimmed();
+            if (!world.isEmpty() && m_worldName != world) {
+                m_worldName = world;
+                if (m_inGameState == InGameState::Singleplayer) {
+                    rebuildActivity();
+                }
+            }
         }
 
         // Realms
@@ -484,7 +555,8 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
 
         // Singleplayer
         if (reSingleplayer.match(line).hasMatch()) {
-            updateInGameState(InGameState::Singleplayer);
+            QString dim = m_gameStateDetail.isEmpty() ? QStringLiteral("Overworld") : m_gameStateDetail;
+            updateInGameState(InGameState::Singleplayer, dim);
             continue;
         }
 
@@ -507,6 +579,7 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
 
         // Main Menu
         if (reMainMenu.match(line).hasMatch()) {
+            m_worldName.clear();
             updateInGameState(InGameState::MainMenu);
             continue;
         }
