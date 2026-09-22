@@ -203,7 +203,28 @@ if(NOT Launcher_GIT_COMMIT_COUNT MATCHES "^[0-9]+$")
     set(Launcher_GIT_COMMIT_COUNT 0)
 endif()
 
-set(Launcher_VERSION_BUILD ${Launcher_GIT_COMMIT_COUNT})
+# Fallback for shallow clones (e.g. fetch-depth: 1 in CI where count returns <= 1)
+if(Launcher_GIT_COMMIT_COUNT LESS_EQUAL 1)
+    execute_process(
+        COMMAND git describe --tags --always --match "v*"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        OUTPUT_VARIABLE Launcher_GIT_DESCRIBE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+    if(Launcher_GIT_DESCRIBE MATCHES "v?[0-9]+\\.[0-9]+\\.[0-9]+\\.([0-9]+)(-([0-9]+)-g[0-9a-f]+)?")
+        set(Launcher_TAG_BUILD "${CMAKE_MATCH_1}")
+        if(CMAKE_MATCH_3)
+            math(EXPR Launcher_GIT_COMMIT_COUNT "${Launcher_TAG_BUILD} + ${CMAKE_MATCH_3}")
+        else()
+            set(Launcher_GIT_COMMIT_COUNT "${Launcher_TAG_BUILD}")
+        endif()
+    endif()
+endif()
+
+if(NOT DEFINED Launcher_VERSION_BUILD OR Launcher_VERSION_BUILD EQUAL 0 OR Launcher_VERSION_BUILD EQUAL 1)
+    set(Launcher_VERSION_BUILD ${Launcher_GIT_COMMIT_COUNT})
+endif()
 
 set(Launcher_VERSION_NAME "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}.${Launcher_VERSION_BUILD}")
 set(Launcher_VERSION_NAME4 "${Launcher_VERSION_MAJOR}.${Launcher_VERSION_MINOR}.${Launcher_VERSION_PATCH}.${Launcher_VERSION_BUILD}")
