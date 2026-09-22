@@ -54,19 +54,18 @@ runs:
 
     # TODO(@getchoo): Get this working on MSYS2!
     - name: Setup ccache
-      if: ${{ (runner.os != 'Windows' || inputs.msystem == '') && inputs.build-type == 'Debug' }}
+      if: ${{ runner.os != 'Windows' || inputs.msystem == '' }}
       uses: hendrikmuhs/ccache-action@v1.2.23
       with:
-        variant: sccache
+        variant: ${{ runner.os == 'macOS' && 'ccache' || 'sccache' }}
         create-symlink: ${{ runner.os != 'Windows' }}
-        key: ${{ runner.os }}-${{ runner.arch }}-${{ inputs.artifact-name }}-sccache
+        key: ${{ runner.os }}-${{ runner.arch }}-${{ inputs.artifact-name }}-${{ inputs.build-type }}-${{ runner.os == 'macOS' && 'ccache' || 'sccache' }}
 
-    - name: Use ccache on debug builds
-      if: ${{ inputs.build-type == 'Debug' }}
+    - name: Use ccache
       shell: bash
       env:
-        # Only use ccache on MSYS2
-        CCACHE_VARIANT: ${{ (runner.os == 'Windows' && inputs.msystem != '') && 'ccache' || 'sccache' }}
+        # Use ccache on macOS (supports multi-arch Universal Binary) and MSYS2; sccache elsewhere
+        CCACHE_VARIANT: ${{ (runner.os == 'macOS' || (runner.os == 'Windows' && inputs.msystem != '')) && 'ccache' || 'sccache' }}
       run: |
         echo "CMAKE_C_COMPILER_LAUNCHER=$CCACHE_VARIANT" >> "$GITHUB_ENV"
         echo "CMAKE_CXX_COMPILER_LAUNCHER=$CCACHE_VARIANT" >> "$GITHUB_ENV"
@@ -126,7 +125,7 @@ runs:
         setup-python: false
         aqtsource: git+https://github.com/miurahr/aqtinstall.git@16db45a70b5905ad596941b223469bc86a56901e
         modules: qtimageformats qtnetworkauth
-        cache: ${{ inputs.build-type == 'Debug' }}
+        cache: true
         arch: ${{ inputs.msystem != '' && 'win64_llvm_mingw' || '' }}
 
     - name: Set Qt6_DIR

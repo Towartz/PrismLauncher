@@ -35,7 +35,7 @@ runs:
         java-version: 17
 
     - name: Setup vcpkg cache (MSVC)
-      if: ${{ inputs.msystem == '' && inputs.build-type == 'Debug' }}
+      if: ${{ inputs.msystem == '' }}
       shell: pwsh
       env:
         USERNAME: ${{ github.repository_owner }}
@@ -81,7 +81,7 @@ runs:
         pacman -Qe
 
     - name: Retrieve ccache cache (MinGW)
-      if: ${{ inputs.msystem != '' && inputs.build-type == 'Debug' }}
+      if: ${{ inputs.msystem != '' }}
       uses: actions/cache@v6.1.0
       with:
         path: '${{ github.workspace }}\.ccache'
@@ -90,7 +90,7 @@ runs:
           ${{ runner.os }}-mingw-w64-ccache
 
     - name: Setup ccache (MinGW)
-      if: ${{ inputs.msystem != '' && inputs.build-type == 'Debug' }}
+      if: ${{ inputs.msystem != '' }}
       shell: msys2 {0}
       run: |
         ccache --set-config=cache_dir='${{ github.workspace }}\.ccache'
