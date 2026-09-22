@@ -26,13 +26,6 @@ runs:
         arch: ${{ inputs.vcvars-arch }}
         vsversion: 2022
 
-    - name: Ensure 7-Zip is in PATH
-      shell: pwsh
-      run: |
-        if (Test-Path "C:\Program Files\7-Zip") {
-          "C:\Program Files\7-Zip" | Out-File -Append -FilePath $env:GITHUB_PATH -Encoding utf8
-        }
-
     - name: Setup Java (MSVC)
       uses: actions/setup-java@v6
       with:

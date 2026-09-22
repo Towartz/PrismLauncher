@@ -114,6 +114,7 @@ runs:
 
   # old python versions detect 7z files as zip, breaking aqtinstall. see https://github.com/miurahr/aqtinstall/issues/1042
     - name: Update Python
+      if: ${{ inputs.msystem == '' }}
       uses: actions/setup-python@v7
       with:
         python-version: '3.14'
@@ -127,7 +128,6 @@ runs:
         modules: qtimageformats qtnetworkauth
         cache: ${{ inputs.build-type == 'Debug' }}
         arch: ${{ inputs.msystem != '' && 'win64_llvm_mingw' || '' }}
-        extra: ${{ runner.os == 'Windows' && '--external 7z' || '' }}
 
     - name: Set Qt6_DIR
       shell: bash
