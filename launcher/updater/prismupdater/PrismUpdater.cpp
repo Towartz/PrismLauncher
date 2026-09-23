@@ -470,11 +470,37 @@ void PrismUpdaterApp::run()
 
     if (m_checkOnly) {
         if (need_update) {
+            auto newer = newerReleases();
+            QString combinedBody = latest.body;
+            if (newer.size() > 1) {
+                QStringList sections;
+                QString highlightsFooter;
+                const QString footerMarker = QStringLiteral("\n---\n#### Highlights & Features:");
+                for (int i = 0; i < newer.size(); ++i) {
+                    QString body = newer[i].body.trimmed();
+                    if (body.isEmpty())
+                        continue;
+                    int footerIdx = body.indexOf(footerMarker);
+                    if (footerIdx != -1) {
+                        if (highlightsFooter.isEmpty()) {
+                            highlightsFooter = body.mid(footerIdx);
+                        }
+                        body = body.left(footerIdx).trimmed();
+                    }
+                    if (!body.isEmpty()) {
+                        sections.append(body);
+                    }
+                }
+                if (!sections.isEmpty()) {
+                    combinedBody = sections.join(QStringLiteral("\n\n---\n\n")) + highlightsFooter;
+                }
+            }
+
             QTextStream stdOutStream(stdout);
             stdOutStream << "Name: " << latest.name << "\n";
             stdOutStream << "Version: " << latest.tag_name << "\n";
             stdOutStream << "TimeStamp: " << latest.created_at.toString(Qt::ISODate) << "\n";
-            stdOutStream << latest.body << "\n";
+            stdOutStream << combinedBody << "\n";
             stdOutStream.flush();
 
             return exit(100);
@@ -664,10 +690,15 @@ QList<GitHubRelease> PrismUpdaterApp::newerReleases()
     auto current_ver = Version(cleanVersionString(localVer));
     QList<GitHubRelease> newer;
     for (auto rls : nonDraftReleases()) {
+        if (rls.prerelease && !m_allowPreRelease)
+            continue;
         auto rls_ver = Version(cleanVersionString(rls.tag_name));
         if (rls_ver > current_ver)
             newer.append(rls);
     }
+    std::sort(newer.begin(), newer.end(), [](const GitHubRelease& a, const GitHubRelease& b) {
+        return Version(cleanVersionString(a.tag_name)) > Version(cleanVersionString(b.tag_name));
+    });
     return newer;
 }
 
@@ -1190,33 +1221,43 @@ void PrismUpdaterApp::loadReleaseList()
     m_repoOwner = path_parts.takeFirst();
     m_repoName = path_parts.takeFirst();
 
-    // Start with Tier 1: Zero-rate-limit Fastly CDN raw releases.json
-    loadReleaseListFromCdn();
+    // Start with Tier 1: Real-time GitHub REST API (zero CDN lag), with automatic fallback to Tier 2 (Fastly CDN releases.json) and Tier 3
+    // (Atom feed)
+    loadReleaseListFromApi(1);
 }
 
 void PrismUpdaterApp::loadReleaseListFromCdn()
 {
     m_currentFetchTier = UpdateFetchTier::CdnRaw;
-    auto cdn_url = QString("https://raw.githubusercontent.com/%1/%2/develop/releases.json").arg(m_repoOwner, m_repoName);
+    auto cdn_url = QString("https://raw.githubusercontent.com/%1/%2/develop/releases.json?t=%3")
+                       .arg(m_repoOwner, m_repoName, QString::number(QDateTime::currentSecsSinceEpoch()));
     qDebug() << "Fetching release list via CDN cache from" << cdn_url;
 
     auto [download, response] = Net::Request::makeByteArray(cdn_url);
     download->setNetwork(m_network.get());
     m_current_url = cdn_url;
 
+    auto headers = std::make_unique<Net::RawHeaderProxy>();
+    headers->addHeaders({
+        { "Cache-Control", "no-cache, no-store, must-revalidate" },
+        { "Pragma", "no-cache" },
+        { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
+    });
+    download->addHeaderProxy(std::move(headers));
+
     connect(download.get(), &Net::Request::succeeded, this, [this, response]() {
         auto numFound = parseReleasePage(response);
         if (!numFound || numFound.value() == 0) {
-            qWarning() << "Failed to parse releases from CDN cache, falling back to GitHub REST API...";
-            loadReleaseListFromApi(1);
+            qWarning() << "Failed to parse releases from CDN cache, falling back to Atom feed...";
+            loadReleaseListFromAtomFeed();
         } else {
             qDebug() << "Successfully loaded" << m_releases.length() << "releases via Fastly CDN cache";
             run();
         }
     });
     connect(download.get(), &Net::Request::failed, this, [this](QString reason) {
-        qWarning() << "CDN cache unavailable (" << reason << "), falling back to GitHub REST API...";
-        loadReleaseListFromApi(1);
+        qWarning() << "CDN cache unavailable (" << reason << "), falling back to Atom feed...";
+        loadReleaseListFromAtomFeed();
     });
 
     m_current_task.reset(download);
@@ -1244,6 +1285,7 @@ void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
     github_api_headers->addHeaders({
         { "Accept", "application/vnd.github+json" },
         { "X-GitHub-Api-Version", "2022-11-28" },
+        { "Cache-Control", "no-cache" },
         { "User-Agent", QString("PrismLauncher-Updater/%1").arg(BuildConfig.printableVersionString()).toUtf8() },
     });
     auto token = qEnvironmentVariable("GITHUB_TOKEN");
@@ -1257,18 +1299,23 @@ void PrismUpdaterApp::downloadReleasePage(const QString& api_url, int page)
 
     connect(download.get(), &Net::Request::succeeded, this, [this, response, per_page, api_url, page]() {
         auto numFound = parseReleasePage(response);
-        if (!numFound) {
-            qWarning() << "Failed to parse releases from GitHub REST API, falling back to Atom feed...";
-            loadReleaseListFromAtomFeed();
-        } else if (!(numFound.value() < per_page)) {  // there may be more, fetch next page
+        if (!numFound || (page == 1 && numFound.value() == 0)) {
+            qWarning() << "Failed to parse releases from GitHub REST API, falling back to CDN cache...";
+            loadReleaseListFromCdn();
+        } else if (!(numFound.value() < per_page) && m_selectUI &&
+                   m_allowDowngrade) {  // only paginate full history when browsing downgrades
             downloadReleasePage(api_url, page + 1);
         } else {
             run();
         }
     });
-    connect(download.get(), &Net::Request::failed, this, [this](QString reason) {
-        qWarning() << "GitHub REST API failed (" << reason << "), falling back to Atom feed...";
-        loadReleaseListFromAtomFeed();
+    connect(download.get(), &Net::Request::failed, this, [this, page](QString reason) {
+        if (page > 1 && !m_releases.isEmpty()) {
+            run();
+            return;
+        }
+        qWarning() << "GitHub REST API failed (" << reason << "), falling back to CDN cache...";
+        loadReleaseListFromCdn();
     });
 
     m_current_task.reset(download);
