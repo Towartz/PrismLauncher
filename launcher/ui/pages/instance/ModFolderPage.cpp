@@ -40,6 +40,7 @@
 #include "minecraft/mod/ModBackupManager.h"
 #include "minecraft/mod/Resource.h"
 #include "ui/dialogs/ExportToModListDialog.h"
+#include "ui/dialogs/ImportModListDialog.h"
 #include "ui/dialogs/InstallLoaderDialog.h"
 #include "ui/dialogs/ModBackupDialog.h"
 #include "ui_ExternalResourcesPage.h"
@@ -148,7 +149,13 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     m_ui->actionExportMetadata->setToolTip(tr("Export mod's metadata to text."));
     connect(m_ui->actionExportMetadata, &QAction::triggered, this, &ModFolderPage::exportModMetadata);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewHomepage, m_ui->actionExportMetadata);
-    m_ui->actionsToolbar->insertActionAfter(m_ui->actionExportMetadata, toggleIgnoreAction);
+
+    m_importModListAction = new QAction(tr("Import Mod List..."), this);
+    m_importModListAction->setIcon(QIcon::fromTheme("document-import"));
+    m_importModListAction->setToolTip(tr("Import mods universally from an exported mod list, URLs, or text and resolve download sources."));
+    connect(m_importModListAction, &QAction::triggered, this, &ModFolderPage::importModMetadata);
+    m_ui->actionsToolbar->insertActionAfter(m_ui->actionExportMetadata, m_importModListAction);
+    m_ui->actionsToolbar->insertActionAfter(m_importModListAction, toggleIgnoreAction);
 
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewFolder, m_ui->actionViewConfigs);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionChangeVersion, m_ui->actionLockUpdates);
@@ -406,6 +413,17 @@ void ModFolderPage::exportModMetadata()
 
     std::ranges::sort(selectedMods, [](const Mod* a, const Mod* b) { return a->name() < b->name(); });
     ExportToModListDialog dlg(m_instance->name(), selectedMods, this);
+    dlg.exec();
+}
+
+void ModFolderPage::importModMetadata()
+{
+    auto* profile = m_instance->getPackProfile();
+    if (!profile->getModLoaders().has_value() && handleNoModLoader()) {
+        return;
+    }
+
+    ImportModListDialog dlg(m_instance, m_model, this);
     dlg.exec();
 }
 

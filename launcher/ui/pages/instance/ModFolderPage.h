@@ -72,6 +72,7 @@ class ModFolderPage : public ExternalResourcesPage {
     void updateMods(bool includeDeps = false, std::vector<ModPlatform::IndexedVersionType> releaseTypes = {});
     void deleteModMetadata();
     void exportModMetadata();
+    void importModMetadata();
     void changeModVersion();
     void toggleIgnoreSelectedMods();
     void clearIgnoredMods();
@@ -83,6 +84,7 @@ class ModFolderPage : public ExternalResourcesPage {
     QPointer<ResourceDownload::ResourceDownloadDialog> m_downloadDialog;
     QAction* m_rollbackAction = nullptr;
     QAction* m_manageBackupsAction = nullptr;
+    QAction* m_importModListAction = nullptr;
 };
 
 class CoreModFolderPage : public ModFolderPage {

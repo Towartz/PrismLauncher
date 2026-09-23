@@ -508,6 +508,8 @@ set(API_SOURCES
 
     modplatform/helpers/ExportToModList.h
     modplatform/helpers/ExportToModList.cpp
+    modplatform/helpers/ImportFromModList.h
+    modplatform/helpers/ImportFromModList.cpp
 )
 
 set(FTB_SOURCES
@@ -1056,6 +1058,8 @@ SET(LAUNCHER_SOURCES
     ui/dialogs/ExportPackDialog.h
     ui/dialogs/ExportToModListDialog.cpp
     ui/dialogs/ExportToModListDialog.h
+    ui/dialogs/ImportModListDialog.cpp
+    ui/dialogs/ImportModListDialog.h
     ui/dialogs/IconPickerDialog.cpp
     ui/dialogs/IconPickerDialog.h
     ui/dialogs/ImportResourceDialog.cpp

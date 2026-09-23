@@ -139,13 +139,18 @@ QString toJSON(const QList<Mod*>& mods, ExportToModList::OptionalData extraData)
         auto modName = mod->name();
         QJsonObject line;
         line["name"] = modName;
-        if ((extraData & ExportToModList::Url) != 0) {
+        if (!mod->modId().isEmpty()) {
+            line["mod_id"] = mod->modId();
+        }
+        line["enabled"] = mod->enabled();
+
+        if ((extraData & ExportToModList::Url) != 0 || meta != nullptr) {
             auto url = mod->homepage();
             if (!url.isEmpty()) {
                 line["url"] = url;
             }
         }
-        if ((extraData & ExportToModList::Version) != 0) {
+        if ((extraData & ExportToModList::Version) != 0 || meta != nullptr) {
             auto ver = mod->version();
             if (ver.isEmpty() && meta != nullptr) {
                 ver = meta->version().toString();
@@ -157,8 +162,38 @@ QString toJSON(const QList<Mod*>& mods, ExportToModList::OptionalData extraData)
         if (((extraData & ExportToModList::Authors) != 0) && !mod->authors().isEmpty()) {
             line["authors"] = QJsonArray::fromStringList(mod->authors());
         }
-        if ((extraData & ExportToModList::FileName) != 0) {
+        if ((extraData & ExportToModList::FileName) != 0 || !mod->fileinfo().fileName().isEmpty()) {
             line["filename"] = mod->fileinfo().fileName();
+        }
+
+        if (meta != nullptr) {
+            if (!meta->slug.isEmpty()) {
+                line["slug"] = meta->slug;
+            }
+            line["provider"] = QString::fromLatin1(ModPlatform::ProviderCapabilities::name(meta->provider));
+            if (!meta->projectId.isNull()) {
+                line["project_id"] = meta->projectId.toString();
+            }
+            if (!meta->fileId.isNull()) {
+                line["file_id"] = meta->fileId.toString();
+            }
+            if (!meta->url.isEmpty()) {
+                line["download_url"] = meta->url.toString();
+            }
+            if (!meta->hash.isEmpty()) {
+                line["hash"] = meta->hash;
+                line["hash_format"] = meta->hashFormat;
+            }
+            if (!meta->mcVersions.isEmpty()) {
+                line["mc_versions"] = QJsonArray::fromStringList(meta->mcVersions);
+            }
+            QStringList loaderStrings;
+            for (auto loader : ModPlatform::modLoaderTypesToList(meta->loaders)) {
+                loaderStrings << ModPlatform::getModLoaderAsString(loader);
+            }
+            if (!loaderStrings.isEmpty()) {
+                line["loaders"] = QJsonArray::fromStringList(loaderStrings);
+            }
         }
         lines << line;
     }
@@ -238,9 +273,23 @@ QString exportToModList(const QList<Mod*>& mods, const QString& lineTemplate)
         }
         auto authors = mod->authors().join(", ");
         auto filename = mod->fileinfo().fileName();
+        QString slug = meta ? meta->slug : QString();
+        QString provider = meta ? QString::fromLatin1(ModPlatform::ProviderCapabilities::name(meta->provider)) : QString();
+        QString projectId = (meta && !meta->projectId.isNull()) ? meta->projectId.toString() : QString();
+        QString fileId = (meta && !meta->fileId.isNull()) ? meta->fileId.toString() : QString();
+        QString downloadUrl = (meta && !meta->url.isEmpty()) ? meta->url.toString() : QString();
+        QString hash = meta ? meta->hash : QString();
+        QString enabled = mod->enabled() ? "true" : "false";
         lines << QString(lineTemplate)
                      .replace("{name}", modName)
                      .replace("{mod_id}", modID)
+                     .replace("{slug}", slug)
+                     .replace("{provider}", provider)
+                     .replace("{project_id}", projectId)
+                     .replace("{file_id}", fileId)
+                     .replace("{download_url}", downloadUrl)
+                     .replace("{hash}", hash)
+                     .replace("{enabled}", enabled)
                      .replace("{url}", url)
                      .replace("{version}", ver)
                      .replace("{authors}", authors)
