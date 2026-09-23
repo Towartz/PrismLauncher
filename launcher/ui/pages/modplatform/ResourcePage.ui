@@ -62,9 +62,9 @@
     </widget>
    </item>
    <item>
-    <layout class="QGridLayout" name="gridLayout_4" columnstretch="0,0,0">
-     <item row="0" column="2">
-      <widget class="QComboBox" name="versionSelectionBox"/>
+    <layout class="QGridLayout" name="gridLayout_4" columnstretch="2,0,3,2">
+     <item row="0" column="0">
+      <widget class="QComboBox" name="sortByBox"/>
      </item>
      <item row="0" column="1">
       <widget class="QLabel" name="label">
@@ -76,10 +76,10 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="0">
-      <widget class="QComboBox" name="sortByBox"/>
+     <item row="0" column="2">
+      <widget class="QComboBox" name="versionSelectionBox"/>
      </item>
-     <item row="1" column="2">
+     <item row="0" column="3">
       <widget class="QPushButton" name="resourceSelectionButton"/>
      </item>
     </layout>

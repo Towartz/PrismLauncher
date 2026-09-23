@@ -121,14 +121,12 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     auto* clearIgnoredAction = updateMenu->addAction(tr("Clear Ignored Updates List"));
     connect(clearIgnoredAction, &QAction::triggered, this, &ModFolderPage::clearIgnoredMods);
 
-    m_rollbackAction = new QAction(tr("Rollback Mod..."), this);
-    m_rollbackAction->setIcon(QIcon::fromTheme("edit-undo"));
+    m_rollbackAction = new QAction(tr("Rollback Mod"), this);
     m_rollbackAction->setToolTip(tr("Rollback selected mod to a previously backed-up version."));
     m_rollbackAction->setEnabled(false);
     connect(m_rollbackAction, &QAction::triggered, this, &ModFolderPage::rollbackMod);
 
-    m_manageBackupsAction = new QAction(tr("Mod Backups..."), this);
-    m_manageBackupsAction->setIcon(QIcon::fromTheme("document-open-recent"));
+    m_manageBackupsAction = new QAction(tr("Mod Backups"), this);
     m_manageBackupsAction->setToolTip(tr("View and manage backed-up mod versions."));
     connect(m_manageBackupsAction, &QAction::triggered, this, &ModFolderPage::manageModBackups);
 
@@ -150,12 +148,10 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     connect(m_ui->actionExportMetadata, &QAction::triggered, this, &ModFolderPage::exportModMetadata);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewHomepage, m_ui->actionExportMetadata);
 
-    m_importModListAction = new QAction(tr("Import Mod List..."), this);
-    m_importModListAction->setIcon(QIcon::fromTheme("document-import"));
+    m_importModListAction = new QAction(tr("Import List"), this);
     m_importModListAction->setToolTip(tr("Import mods universally from an exported mod list, URLs, or text and resolve download sources."));
     connect(m_importModListAction, &QAction::triggered, this, &ModFolderPage::importModMetadata);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionExportMetadata, m_importModListAction);
-    m_ui->actionsToolbar->insertActionAfter(m_importModListAction, toggleIgnoreAction);
 
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewFolder, m_ui->actionViewConfigs);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionChangeVersion, m_ui->actionLockUpdates);
@@ -443,13 +439,12 @@ void ModFolderPage::updateActions()
         if (latestBackup.has_value()) {
             canRollback = true;
             m_rollbackAction->setText(
-                tr("Rollback to %1...")
-                    .arg(latestBackup->oldVersion.isEmpty() ? latestBackup->originalFileName : latestBackup->oldVersion));
+                tr("Rollback (%1)").arg(latestBackup->oldVersion.isEmpty() ? latestBackup->originalFileName : latestBackup->oldVersion));
         } else {
-            m_rollbackAction->setText(tr("Rollback Mod..."));
+            m_rollbackAction->setText(tr("Rollback Mod"));
         }
     } else {
-        m_rollbackAction->setText(tr("Rollback Mod..."));
+        m_rollbackAction->setText(tr("Rollback Mod"));
     }
     m_rollbackAction->setEnabled(canRollback);
     m_manageBackupsAction->setEnabled(true);

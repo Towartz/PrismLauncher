@@ -69,7 +69,7 @@ ResourceDownloadDialog::ResourceDownloadDialog(QWidget* parent,
 {
     setObjectName(QStringLiteral("ResourceDownloadDialog"));
 
-    resize(static_cast<int>(std::max(0.5 * parent->width(), 400.0)), static_cast<int>(std::max(0.75 * parent->height(), 400.0)));
+    resize(static_cast<int>(std::max(0.82 * parent->width(), 940.0)), static_cast<int>(std::max(0.84 * parent->height(), 640.0)));
 
     setWindowIcon(QIcon::fromTheme("new"));
 

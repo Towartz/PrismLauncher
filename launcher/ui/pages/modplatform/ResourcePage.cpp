@@ -88,6 +88,10 @@ ResourcePage::ResourcePage(ResourceDownloadDialog* parent,
 {
     m_ui->setupUi(this);
 
+    m_ui->splitter->setStretchFactor(0, 1);
+    m_ui->splitter->setStretchFactor(1, 4);
+    m_ui->splitter->setStretchFactor(2, 5);
+
     m_ui->versionSelectionBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_ui->versionSelectionBox->view()->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
 
@@ -144,11 +148,24 @@ void ResourcePage::openedImpl()
     m_ui->searchEdit->setPlaceholderText(tr("Search for %1...").arg(resourcesString()));
     m_ui->resourceSelectionButton->setText(tr("Select %1 for download").arg(resourceString()));
 
+    if (m_model) {
+        connect(
+            m_model, &QAbstractItemModel::rowsInserted, this,
+            [this](const QModelIndex&, int, int) {
+                if (!m_ui->packView->currentIndex().isValid() && m_model->rowCount({}) > 0) {
+                    m_ui->packView->setCurrentIndex(m_model->index(0));
+                }
+            },
+            Qt::UniqueConnection);
+    }
+
     auto currentPack = getCurrentPack();
     bool hasSelectedPack = currentPack && currentPack->versionsLoaded;
 
     if (m_ui->packView->currentIndex().isValid()) {
         versionListUpdated(m_ui->packView->currentIndex());
+    } else if (m_model && m_model->rowCount({}) > 0) {
+        m_ui->packView->setCurrentIndex(m_model->index(0));
     }
     if (!m_suppressInitialSearch && !hasSelectedPack) {
         triggerSearch();
@@ -305,27 +322,35 @@ void ResourcePage::updateUi(const QModelIndex& index)
 
 void ResourcePage::updateSelectionButton()
 {
-    if (!isOpened || m_selectedVersionIndex < 0) {
+    if (!isOpened) {
         m_ui->resourceSelectionButton->setEnabled(false);
-        m_ui->resourceSelectionButton->setText(tr("Cannot select invalid version :("));
+        return;
+    }
+
+    auto currentPack = getCurrentPack();
+    if (!currentPack) {
+        m_ui->resourceSelectionButton->setEnabled(false);
+        m_ui->resourceSelectionButton->setText(tr("Select a %1").arg(resourceString()));
+        return;
+    }
+
+    if (!currentPack->versionsLoaded) {
+        m_ui->resourceSelectionButton->setEnabled(false);
+        m_ui->resourceSelectionButton->setText(tr("Loading versions..."));
+        return;
+    }
+
+    if (currentPack->versions.empty() || m_selectedVersionIndex < 0) {
+        m_ui->resourceSelectionButton->setEnabled(false);
+        m_ui->resourceSelectionButton->setText(tr("No compatible version"));
         return;
     }
 
     m_ui->resourceSelectionButton->setEnabled(true);
-    if (auto currentPack = getCurrentPack(); currentPack) {
-        if (currentPack->versionsLoaded && currentPack->versions.empty()) {
-            m_ui->resourceSelectionButton->setEnabled(false);
-            m_ui->resourceSelectionButton->setText(tr("Cannot select invalid version :("));
-            qWarning() << tr("No version available for the selected pack");
-        } else if (!currentPack->isVersionSelected(m_selectedVersionIndex)) {
-            m_ui->resourceSelectionButton->setText(tr("Select %1 for download").arg(resourceString()));
-        } else {
-            m_ui->resourceSelectionButton->setText(tr("Deselect %1 for download").arg(resourceString()));
-        }
+    if (!currentPack->isVersionSelected(m_selectedVersionIndex)) {
+        m_ui->resourceSelectionButton->setText(tr("Select %1 for download").arg(resourceString()));
     } else {
-        qWarning() << "Tried to update the selected button but there is not a pack selected";
-        m_ui->resourceSelectionButton->setEnabled(false);
-        m_ui->resourceSelectionButton->setText(tr("Cannot select invalid version :("));
+        m_ui->resourceSelectionButton->setText(tr("Deselect %1 for download").arg(resourceString()));
     }
 }
 
@@ -684,7 +709,7 @@ void ResourcePage::openProject(const QVariant& projectID)
     });
 
     connect(cancelBtn, &QPushButton::clicked, m_parentDialog, &ResourceDownloadDialog::reject);
-    m_ui->gridLayout_4->addWidget(buttonBox, 1, 2);
+    m_ui->gridLayout_4->addWidget(buttonBox, 0, 3);
 
     connect(m_ui->versionSelectionBox, &QComboBox::currentIndexChanged, this,
             [this, okBtn](int index) { okBtn->setEnabled(m_ui->versionSelectionBox->itemData(index).toInt() >= 0); });
