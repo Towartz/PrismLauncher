@@ -88,8 +88,12 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
 
     auto* updateMenu = new QMenu(this);
 
-    auto* update = updateMenu->addAction(tr("Check for Updates"));
-    connect(update, &QAction::triggered, this, [this] { updateMods(); });
+    m_updateSelectedAction = updateMenu->addAction(tr("Check for Updates"));
+    connect(m_updateSelectedAction, &QAction::triggered, this, [this] { updateMods(); });
+
+    m_updateAllAction = updateMenu->addAction(tr("Check All Mods for Updates"));
+    m_updateAllAction->setVisible(false);
+    connect(m_updateAllAction, &QAction::triggered, this, [this] { updateMods(false, {}, true); });
 
     auto* updateReleasesOnly = updateMenu->addAction(tr("Check for Updates (Release only)"));
     connect(updateReleasesOnly, &QAction::triggered, this, [this] { updateMods(false, { ModPlatform::IndexedVersionType::Release }); });
@@ -145,7 +149,14 @@ ModFolderPage::ModFolderPage(MinecraftInstance* inst, ModFolderModel* model, QWi
     m_ui->actionViewHomepage->setToolTip(tr("View the homepages of all selected mods."));
 
     m_ui->actionExportMetadata->setToolTip(tr("Export mod's metadata to text."));
-    connect(m_ui->actionExportMetadata, &QAction::triggered, this, &ModFolderPage::exportModMetadata);
+    connect(m_ui->actionExportMetadata, &QAction::triggered, this, [this] { exportModMetadata(false); });
+    auto* exportMenu = new QMenu(this);
+    m_exportSelectedAction = exportMenu->addAction(tr("Export List"));
+    connect(m_exportSelectedAction, &QAction::triggered, this, [this] { exportModMetadata(false); });
+    m_exportAllAction = exportMenu->addAction(tr("Export All Mods"));
+    m_exportAllAction->setVisible(false);
+    connect(m_exportAllAction, &QAction::triggered, this, [this] { exportModMetadata(true); });
+    m_ui->actionExportMetadata->setMenu(exportMenu);
     m_ui->actionsToolbar->insertActionAfter(m_ui->actionViewHomepage, m_ui->actionExportMetadata);
 
     m_importModListAction = new QAction(tr("Import List"), this);
@@ -258,7 +269,7 @@ void ModFolderPage::downloadDialogFinished(int result)
     }
 }
 
-void ModFolderPage::updateMods(bool includeDeps, std::vector<ModPlatform::IndexedVersionType> releaseTypes)
+void ModFolderPage::updateMods(bool includeDeps, std::vector<ModPlatform::IndexedVersionType> releaseTypes, bool forceAll)
 {
     auto* profile = m_instance->getPackProfile();
     if (!profile->getModLoaders().has_value() && handleNoModLoader()) {
@@ -284,8 +295,8 @@ void ModFolderPage::updateMods(bool includeDeps, std::vector<ModPlatform::Indexe
     }
     auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
 
-    auto modsList = m_model->selectedResources(selection);
-    bool useAll = modsList.empty();
+    auto modsList = forceAll ? QList<Resource*>{} : m_model->selectedResources(selection);
+    bool useAll = forceAll || modsList.empty();
     if (useAll) {
         modsList = m_model->allResources();
     }
@@ -399,10 +410,10 @@ void ModFolderPage::changeModVersion()
     m_downloadDialog->open();
 }
 
-void ModFolderPage::exportModMetadata()
+void ModFolderPage::exportModMetadata(bool forceAll)
 {
     auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
-    auto selectedMods = m_model->selectedMods(selection);
+    auto selectedMods = forceAll ? QList<Mod*>{} : m_model->selectedMods(selection);
     if (selectedMods.length() == 0) {
         selectedMods = m_model->allMods();
     }
@@ -429,6 +440,21 @@ void ModFolderPage::updateActions()
 
     auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection()).indexes();
     auto selectedMods = m_model->selectedMods(selection);
+    const bool hasSelectedMods = !selectedMods.isEmpty();
+
+    if (m_updateSelectedAction) {
+        m_updateSelectedAction->setText(hasSelectedMods ? tr("Check Selected (%1) for Updates").arg(selectedMods.size())
+                                                        : tr("Check for Updates"));
+    }
+    if (m_updateAllAction) {
+        m_updateAllAction->setVisible(hasSelectedMods);
+    }
+    if (m_exportSelectedAction) {
+        m_exportSelectedAction->setText(hasSelectedMods ? tr("Export Selected (%1)").arg(selectedMods.size()) : tr("Export List"));
+    }
+    if (m_exportAllAction) {
+        m_exportAllAction->setVisible(hasSelectedMods);
+    }
 
     bool canRollback = false;
     if (selectedMods.size() == 1 && m_instance) {

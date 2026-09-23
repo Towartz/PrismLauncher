@@ -44,6 +44,8 @@
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QShortcut>
+#include <QSignalBlocker>
 #include <QStyledItemDelegate>
 #include <algorithm>
 
@@ -128,13 +130,17 @@ ExternalResourcesPage::ExternalResourcesPage(MinecraftInstance* instance, Resour
     connect(m_ui->actionUnlockUpdates, &QAction::triggered, this, &ExternalResourcesPage::unlockUpdates);
 
     auto* selectionModel = m_ui->treeView->selectionModel();
+    m_ui->frame->clear();
+    m_ui->frame->setVisible(false);
 
     connect(selectionModel, &QItemSelectionModel::currentChanged, this, [this](const QModelIndex& current, const QModelIndex& previous) {
-        if (!current.isValid()) {
+        if (!current.isValid() || !m_ui->treeView->selectionModel()->hasSelection()) {
             m_ui->frame->clear();
+            m_ui->frame->setVisible(false);
             return;
         }
 
+        m_ui->frame->setVisible(true);
         updateFrame(current, previous);
     });
 
@@ -148,7 +154,30 @@ ExternalResourcesPage::ExternalResourcesPage(MinecraftInstance* instance, Resour
     connect(model, &ResourceFolderModel::updateFinished, this, updateExtra);
     connect(model, &ResourceFolderModel::parseFinished, this, updateExtra);
 
-    connect(selectionModel, &QItemSelectionModel::selectionChanged, this, [this] { updateActions(); });
+    connect(selectionModel, &QItemSelectionModel::selectionChanged, this, [this] {
+        auto* selModel = m_ui->treeView->selectionModel();
+        if (!selModel->hasSelection()) {
+            if (selModel->currentIndex().isValid()) {
+                QSignalBlocker blocker(selModel);
+                selModel->setCurrentIndex(QModelIndex(), QItemSelectionModel::Clear);
+            }
+            m_ui->frame->clear();
+            m_ui->frame->setVisible(false);
+        } else {
+            QModelIndex current = selModel->currentIndex();
+            if (!current.isValid() || !selModel->isRowSelected(current.row(), current.parent())) {
+                const auto rows = selModel->selectedRows();
+                if (!rows.isEmpty()) {
+                    current = rows.first();
+                }
+            }
+            if (current.isValid()) {
+                m_ui->frame->setVisible(true);
+                updateFrame(current, QModelIndex());
+            }
+        }
+        updateActions();
+    });
     connect(m_model, &ResourceFolderModel::rowsInserted, this, [this] { updateActions(); });
     connect(m_model, &ResourceFolderModel::rowsRemoved, this, [this] { updateActions(); });
     connect(m_model, &ResourceFolderModel::dataChanged, this, [this] { updateActions(); });
@@ -160,6 +189,14 @@ ExternalResourcesPage::ExternalResourcesPage(MinecraftInstance* instance, Resour
 
     m_model->loadColumns(m_ui->treeView);
     connect(m_ui->treeView->header(), &QHeaderView::sectionResized, this, [this] { m_model->saveColumns(m_ui->treeView); });
+    m_ui->filterEdit->setClearButtonEnabled(true);
+    m_ui->filterEdit->setPlaceholderText(tr("Search... (Ctrl+F)"));
+    m_ui->filterEdit->installEventFilter(this);
+    auto* findShortcut = new QShortcut(QKeySequence::Find, this);
+    connect(findShortcut, &QShortcut::activated, this, [this] {
+        m_ui->filterEdit->setFocus(Qt::ShortcutFocusReason);
+        m_ui->filterEdit->selectAll();
+    });
     connect(m_ui->filterEdit, &QLineEdit::textChanged, this, &ExternalResourcesPage::filterTextChanged);
     updateActions();
 }
@@ -179,6 +216,25 @@ QMenu* ExternalResourcesPage::createPopupMenu()
 void ExternalResourcesPage::showContextMenu(const QPoint& pos)
 {
     auto* menu = m_ui->actionsToolbar->createContextMenu(this, tr("Context menu"));
+    menu->addSeparator();
+
+    const bool hasRows = m_filterModel->rowCount() > 0;
+    const bool hasSelection = m_ui->treeView->selectionModel()->hasSelection();
+
+    auto* selectAllAction = menu->addAction(tr("Select All"));
+    selectAllAction->setShortcut(QKeySequence::SelectAll);
+    selectAllAction->setEnabled(hasRows);
+    connect(selectAllAction, &QAction::triggered, m_ui->treeView, &QAbstractItemView::selectAll);
+
+    auto* clearSelectionAction = menu->addAction(tr("Clear Selection"));
+    clearSelectionAction->setShortcut(QKeySequence(Qt::Key_Escape));
+    clearSelectionAction->setEnabled(hasSelection);
+    connect(clearSelectionAction, &QAction::triggered, this, &ExternalResourcesPage::clearSelectionAndFrame);
+
+    auto* invertSelectionAction = menu->addAction(tr("Invert Selection"));
+    invertSelectionAction->setEnabled(hasRows);
+    connect(invertSelectionAction, &QAction::triggered, this, &ExternalResourcesPage::invertSelection);
+
     menu->exec(m_ui->treeView->mapToGlobal(pos));
     delete menu;
 }
@@ -215,6 +271,10 @@ void ExternalResourcesPage::filterTextChanged(const QString& newContents)
 {
     m_viewFilter = newContents;
     m_filterModel->setFilterRegularExpression(m_viewFilter);
+    if (!m_ui->treeView->selectionModel()->hasSelection()) {
+        clearSelectionAndFrame();
+    }
+    updateActions();
 }
 
 bool ExternalResourcesPage::shouldDisplay() const
@@ -231,6 +291,22 @@ bool ExternalResourcesPage::listFilter(QKeyEvent* keyEvent)
         case Qt::Key_Plus:
             addItem();
             return true;
+        case Qt::Key_Space:
+            if (m_ui->treeView->selectionModel()->hasSelection()) {
+                itemActivated(QModelIndex());
+                return true;
+            }
+            break;
+        case Qt::Key_Escape:
+            if (m_ui->treeView->selectionModel()->hasSelection() || m_ui->treeView->currentIndex().isValid()) {
+                clearSelectionAndFrame();
+                return true;
+            }
+            if (!m_ui->filterEdit->text().isEmpty()) {
+                m_ui->filterEdit->clear();
+                return true;
+            }
+            break;
         default:
             break;
     }
@@ -244,6 +320,15 @@ bool ExternalResourcesPage::eventFilter(QObject* obj, QEvent* ev)
     }
 
     auto* keyEvent = static_cast<QKeyEvent*>(ev);
+    if (obj == m_ui->filterEdit && keyEvent->key() == Qt::Key_Escape) {
+        if (!m_ui->filterEdit->text().isEmpty()) {
+            m_ui->filterEdit->clear();
+        } else {
+            clearSelectionAndFrame();
+        }
+        m_ui->treeView->setFocus();
+        return true;
+    }
     if (obj == m_ui->treeView) {
         return listFilter(keyEvent);
     }
@@ -373,6 +458,7 @@ void ExternalResourcesPage::updateActions()
         hasSelection && std::ranges::all_of(selectedResources, [](Resource* resource) { return resource->lockUpdate(); });
 
     m_ui->actionUpdateItem->setEnabled(!m_model->empty() && !allSelectedUpdatesLocked);
+    m_ui->actionUpdateItem->setText(hasSelection ? tr("Check Updates (%1)").arg(selectedResources.size()) : tr("Check for &Updates"));
     m_ui->actionResetItemMetadata->setEnabled(hasSelection);
 
     m_ui->actionChangeVersion->setEnabled(selectedResources.size() == 1 && selectedResources[0]->metadata() != nullptr);
@@ -387,6 +473,7 @@ void ExternalResourcesPage::updateActions()
     m_ui->actionLockUpdates->setEnabled(hasUpdatesUnlocked);
     m_ui->actionUnlockUpdates->setEnabled(hasUpdatesLocked);
     m_ui->actionExportMetadata->setEnabled(!m_model->empty());
+    m_ui->actionExportMetadata->setText(hasSelection ? tr("Export (%1)").arg(selectedResources.size()) : tr("Export List"));
 }
 
 void ExternalResourcesPage::updateFrame(const QModelIndex& current, [[maybe_unused]] const QModelIndex& previous)
@@ -429,4 +516,31 @@ void ExternalResourcesPage::unlockUpdates()
     auto selection = m_filterModel->mapSelectionToSource(m_ui->treeView->selectionModel()->selection());
     m_model->setUpdateLock(selection.indexes(), EnableAction::DISABLE);
     updateActions();
+}
+
+void ExternalResourcesPage::clearSelectionAndFrame()
+{
+    if (!m_ui || !m_ui->treeView || !m_ui->treeView->selectionModel()) {
+        return;
+    }
+    m_ui->treeView->clearSelection();
+    m_ui->treeView->selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::Clear);
+    m_ui->frame->clear();
+    m_ui->frame->setVisible(false);
+    updateActions();
+}
+
+void ExternalResourcesPage::invertSelection()
+{
+    auto* selModel = m_ui->treeView->selectionModel();
+    if (!selModel || !m_filterModel) {
+        return;
+    }
+    const int rows = m_filterModel->rowCount();
+    const int cols = m_filterModel->columnCount();
+    if (rows <= 0 || cols <= 0) {
+        return;
+    }
+    QItemSelection fullRange(m_filterModel->index(0, 0), m_filterModel->index(rows - 1, cols - 1));
+    selModel->select(fullRange, QItemSelectionModel::Toggle | QItemSelectionModel::Rows);
 }

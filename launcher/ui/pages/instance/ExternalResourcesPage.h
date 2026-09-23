@@ -65,6 +65,8 @@ class ExternalResourcesPage : public QMainWindow, public BasePage {
 
     void lockUpdates();
     void unlockUpdates();
+    void clearSelectionAndFrame();
+    void invertSelection();
 
    protected:
     MinecraftInstance* m_instance = nullptr;

@@ -67,3 +67,51 @@ void ModListView::setResizeModes(const QList<QHeaderView::ResizeMode>& modes)
         head->setSectionResizeMode(i, modes[i]);
     }
 }
+
+void ModListView::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && event->modifiers() == Qt::NoModifier) {
+        const QModelIndex index = indexAt(event->pos());
+
+        // 1. Clicking empty space in the viewport clears both selection and currentIndex
+        if (!index.isValid()) {
+            clearSelection();
+            if (selectionModel()) {
+                selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::Clear);
+            }
+            event->accept();
+            return;
+        }
+
+        // 2. Clicking anywhere inside Column 0 (when checkable) toggles the checkbox even if outside the 16x16 indicator rect
+        if (index.column() == 0 && model() && (model()->flags(index) & Qt::ItemIsUserCheckable)) {
+            QStyleOptionViewItem opt;
+            initViewItemOption(&opt);
+            opt.rect = visualRect(index);
+            opt.features |= QStyleOptionViewItem::HasCheckIndicator;
+            const QRect checkRect = style()->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &opt, this);
+            if (!checkRect.contains(event->pos())) {
+                const auto currentState = static_cast<Qt::CheckState>(model()->data(index, Qt::CheckStateRole).toInt());
+                const auto nextState = (currentState == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
+                model()->setData(index, nextState, Qt::CheckStateRole);
+                event->accept();
+                return;
+            }
+        }
+
+        // 3. Clicking an already-selected row when it is the sole selected row unselects it
+        if (selectionModel() && selectionModel()->selectedRows().size() == 1 &&
+            selectionModel()->isRowSelected(index.row(), index.parent())) {
+            const bool isCheckableCol = index.column() == 0 && model() && (model()->flags(index) & Qt::ItemIsUserCheckable);
+            const bool hasCustomColumnDelegate = itemDelegateForColumn(index.column()) != nullptr;
+            if (!isCheckableCol && !hasCustomColumnDelegate) {
+                clearSelection();
+                selectionModel()->setCurrentIndex(QModelIndex(), QItemSelectionModel::Clear);
+                event->accept();
+                return;
+            }
+        }
+    }
+
+    QTreeView::mousePressEvent(event);
+}
