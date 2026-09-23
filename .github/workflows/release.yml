@@ -67,7 +67,7 @@ jobs:
             test -z "${ARM64}" || NAME="${NAME}-arm64"
             test -z "${PORT}" || NAME="${NAME}-Portable"
             test -z "${INST}" || mv PrismLauncher-*.exe ../${NAME}-Setup-${{ env.VERSION }}.exe
-            test -n "${INST}" || zip -r -9 "../${NAME}-${{ env.VERSION }}.zip" *
+            test -n "${INST}" || zip -r -1 "../${NAME}-${{ env.VERSION }}.zip" *
             cd ..
           done
 
@@ -78,7 +78,7 @@ jobs:
             NAME="PrismLauncher-Windows-MinGW-w64"
             test -z "${PORT}" || NAME="${NAME}-Portable"
             test -z "${INST}" || mv PrismLauncher-*.exe ../${NAME}-Setup-${{ env.VERSION }}.exe
-            test -n "${INST}" || zip -r -9 "../${NAME}-${{ env.VERSION }}.zip" *
+            test -n "${INST}" || zip -r -1 "../${NAME}-${{ env.VERSION }}.zip" *
             cd ..
           done
 

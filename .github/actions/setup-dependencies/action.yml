@@ -93,7 +93,6 @@ runs:
         	vcpkg_platform=linux
         	;;
         "macOS")
-        	vcpkg_arch=universal
         	vcpkg_platform=osx
         	;;
         "Windows")
