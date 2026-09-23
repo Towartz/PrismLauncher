@@ -1237,20 +1237,6 @@ if(${Launcher_USE_PCH})
         include/qtcore.pch.hpp
         include/qtgui.pch.hpp
     )
-else()
-    if(MSVC)
-        set(FORCE_INCLUDE_OPTIONS
-            "$<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_CURRENT_SOURCE_DIR}/include/base.pch.hpp>"
-            "$<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_CURRENT_SOURCE_DIR}/include/qtcore.pch.hpp>"
-            "$<$<COMPILE_LANGUAGE:CXX>:/FI${CMAKE_CURRENT_SOURCE_DIR}/include/qtgui.pch.hpp>"
-        )
-    else()
-        set(FORCE_INCLUDE_OPTIONS
-            "$<$<COMPILE_LANGUAGE:CXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/include/base.pch.hpp>"
-            "$<$<COMPILE_LANGUAGE:CXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/include/qtcore.pch.hpp>"
-            "$<$<COMPILE_LANGUAGE:CXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/include/qtgui.pch.hpp>"
-        )
-    endif()
 endif()
 
 ####### Targets ########
@@ -1262,8 +1248,6 @@ target_compile_definitions(Launcher_logic PUBLIC LAUNCHER_APPLICATION)
 
 if(${Launcher_USE_PCH})
     target_precompile_headers(Launcher_logic PRIVATE ${PRECOMPILED_HEADERS})
-else()
-    target_compile_options(Launcher_logic PUBLIC ${FORCE_INCLUDE_OPTIONS})
 endif()
 
 target_link_libraries(Launcher_logic
@@ -1383,8 +1367,6 @@ if(Launcher_BUILD_UPDATER)
 
     if(${Launcher_USE_PCH})
         target_precompile_headers(prism_updater_logic PRIVATE ${PRECOMPILED_HEADERS})
-    else()
-        target_compile_options(prism_updater_logic PUBLIC ${FORCE_INCLUDE_OPTIONS})
     endif()
 
     target_link_libraries(prism_updater_logic
