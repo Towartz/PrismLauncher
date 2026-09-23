@@ -214,7 +214,7 @@ void ImportModListDialog::parseAndResolve()
     m_resolveButton->setEnabled(false);
     m_downloadButton->setEnabled(false);
     m_progressBar->setVisible(true);
-    m_progressBar->setRange(0, m_entries.size());
+    m_progressBar->setRange(0, static_cast<int>(m_entries.size()));
     m_progressBar->setValue(0);
 
     const auto mode = m_modeCombo->currentIndex() == 0 ? ImportFromModList::ResolutionMode::AdaptiveToInstance
@@ -222,7 +222,7 @@ void ImportModListDialog::parseAndResolve()
     const auto priority = m_providerCombo->currentIndex() == 0 ? ImportFromModList::ProviderPriority::ModrinthFirst
                                                                : ImportFromModList::ProviderPriority::CurseForgeFirst;
 
-    for (int i = 0; i < m_entries.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
         auto& entry = m_entries[i];
         if (entry.status != ImportFromModList::EntryStatus::AlreadyInstalled || !m_skipInstalledCheck->isChecked()) {
             entry.status = ImportFromModList::EntryStatus::Resolving;
@@ -499,7 +499,7 @@ void ImportModListDialog::refreshTable()
     m_updatingTable = true;
     m_treeWidget->clear();
 
-    for (int i = 0; i < m_entries.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(m_entries.size()); ++i) {
         const auto& entry = m_entries[i];
         auto* item = new QTreeWidgetItem(m_treeWidget);
         item->setData(0, Qt::UserRole, i);
@@ -544,7 +544,7 @@ void ImportModListDialog::onTreeItemChanged(QTreeWidgetItem* item, int column)
         return;
     }
     const int idx = item->data(0, Qt::UserRole).toInt();
-    if (idx >= 0 && idx < m_entries.size()) {
+    if (idx >= 0 && idx < static_cast<int>(m_entries.size())) {
         m_entries[idx].selected = (item->checkState(0) == Qt::Checked);
         updateSummaryLabel();
     }

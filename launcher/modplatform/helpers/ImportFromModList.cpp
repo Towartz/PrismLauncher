@@ -344,7 +344,7 @@ std::optional<ModEntry> parseTextLine(const QString& rawLine)
     }
 
     // 5. Extract any remaining http/https URL in the line
-    static const QRegularExpression reAnyUrl(R"(\(?(https?://[^\s)"'>\]]+)\)?)");
+    static const QRegularExpression reAnyUrl(R"re(\(?(https?://[^\s)"'>\]]+)\)?)re");
     auto urlMatch = reAnyUrl.match(line);
     if (urlMatch.hasMatch()) {
         parseUrlIntoEntry(urlMatch.captured(1), entry);
@@ -386,7 +386,7 @@ std::optional<ModEntry> parseTextLine(const QString& rawLine)
                 return std::nullopt;  // CSV header row
             }
             line = firstCol;
-            for (int i = 1; i < parts.size(); ++i) {
+            for (qsizetype i = 1; i < parts.size(); ++i) {
                 const QString col = parts[i].trimmed();
                 if (col.startsWith("http://") || col.startsWith("https://")) {
                     parseUrlIntoEntry(col, entry);
