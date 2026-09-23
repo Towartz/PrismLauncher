@@ -9,8 +9,6 @@ on:
     branches:
       - "develop"
       - "release-*"
-    tags:
-      - "*"
     paths:
       # File types
       - "**.cpp"
