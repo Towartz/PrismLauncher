@@ -71,10 +71,11 @@ class DiscordRPC : public QObject {
     explicit DiscordRPC(QObject* parent = nullptr);
     ~DiscordRPC() override;
 
-    void setActivityForInstance(BaseInstance* instance, qint64 pid);
+    void setActivityForInstance(BaseInstance* instance, qint64 pid, const QString& initialServerAddress = QString());
     void setActivity(const DiscordActivity& activity);
     void handleLogLines(const QStringList& lines);
     void updateInGameState(InGameState state, const QString& detail = QString());
+    void refreshActivity();
     void clearActivity();
 
     bool isConnected() const { return m_ready; }
@@ -118,6 +119,8 @@ class DiscordRPC : public QObject {
 
     InGameState m_inGameState = InGameState::Starting;
     QString m_gameStateDetail;
+    QString m_serverHost;
+    qint64 m_lastConnectAttemptMs = 0;
     QString m_worldName;
     QString m_instanceName;
     QString m_mcVersion;

@@ -161,6 +161,9 @@ void ExternalToolsPage::applySettings()
         clientID = QString::fromLatin1(DiscordRPC::DEFAULT_APPLICATION_ID);
     }
     s->set("DiscordRPCClientID", clientID);
+    if (APPLICATION->discordRPC()) {
+        APPLICATION->discordRPC()->refreshActivity();
+    }
 
     // World Tools
     QVariantMap tools;

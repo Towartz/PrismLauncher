@@ -227,7 +227,8 @@ void LauncherPartLaunch::on_state(LoggedProcess::State state)
             emit logLine(QString("Minecraft process ID: %1\n\n").arg(m_process.processId()), MessageLevel::Launcher);
             m_parent->setPid(m_process.processId());
             if (APPLICATION->discordRPC()) {
-                APPLICATION->discordRPC()->setActivityForInstance(m_parent->instance(), m_process.processId());
+                const QString initialServer = (m_targetToJoin && !m_targetToJoin->address.isEmpty()) ? m_targetToJoin->address : QString();
+                APPLICATION->discordRPC()->setActivityForInstance(m_parent->instance(), m_process.processId(), initialServer);
             }
             // send the launch script to the launcher part
             m_process.write(m_launchScript.toUtf8());

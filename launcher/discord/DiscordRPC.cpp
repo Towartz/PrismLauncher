@@ -117,6 +117,34 @@ bool isModOrChatNoiseLine(const QString& line)
            line.contains(QLatin1String("websocket"), Qt::CaseInsensitive) || line.contains(QLatin1String("telemetry"), Qt::CaseInsensitive);
 }
 
+QString extractHostFromSocketAddr(const QString& rawHost)
+{
+    QString host = rawHost.trimmed();
+    // Java InetSocketAddress.toString() formats as "hostname/ip" or "/ip"
+    int slashIdx = host.indexOf('/');
+    if (slashIdx != -1) {
+        QString beforeSlash = host.left(slashIdx).trimmed();
+        QString afterSlash = host.mid(slashIdx + 1).trimmed();
+        host = !beforeSlash.isEmpty() ? beforeSlash : afterSlash;
+    }
+    if (host.startsWith('[')) {
+        int closeBracket = host.indexOf(']');
+        if (closeBracket > 1) {
+            host = host.mid(1, closeBracket - 1);
+        }
+    } else {
+        int firstColon = host.indexOf(':');
+        int lastColon = host.lastIndexOf(':');
+        if (firstColon != -1 && firstColon == lastColon) {
+            host = host.left(firstColon).trimmed();
+        }
+    }
+    while (host.endsWith('.')) {
+        host.chop(1);
+    }
+    return host;
+}
+
 bool isValidMinecraftServerHost(const QString& rawHost, const QString& portStr)
 {
     bool portOk = false;
@@ -125,10 +153,7 @@ bool isValidMinecraftServerHost(const QString& rawHost, const QString& portStr)
         return false;
     }
 
-    QString host = rawHost.trimmed();
-    while (host.endsWith('.')) {
-        host.chop(1);
-    }
+    QString host = extractHostFromSocketAddr(rawHost);
     if (host.isEmpty()) {
         return false;
     }
@@ -143,7 +168,7 @@ bool isValidMinecraftServerHost(const QString& rawHost, const QString& portStr)
     if (!host.contains('.')) {
         return false;
     }
-    static const QRegularExpression reValidHost(QStringLiteral(R"(^(?:(?:\d{1,3}\.){3}\d{1,3}|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})$)"));
+    static const QRegularExpression reValidHost(QStringLiteral(R"(^(?:(?:\d{1,3}\.){3}\d{1,3}|(?:[a-zA-Z0-9_-]+\.)+[a-zA-Z]{2,})$)"));
     return reValidHost.match(host).hasMatch();
 }
 
@@ -215,31 +240,12 @@ QString DiscordRPC::getEffectiveClientId() const
 
 QString DiscordRPC::sanitizeServerAddress(const QString& rawAddress)
 {
-    QString host = rawAddress.trimmed();
+    QString host = extractHostFromSocketAddr(rawAddress);
     if (host.isEmpty()) {
         return {};
     }
 
-    // Remove trailing dot or bracketed IPv6 port
-    if (host.startsWith('[')) {
-        int closeBracket = host.indexOf(']');
-        if (closeBracket > 1) {
-            host = host.mid(1, closeBracket - 1);
-        }
-    } else {
-        // If single colon (host:port), strip the port
-        int firstColon = host.indexOf(':');
-        int lastColon = host.lastIndexOf(':');
-        if (firstColon != -1 && firstColon == lastColon) {
-            host = host.left(firstColon).trimmed();
-        }
-    }
-
-    while (host.endsWith('.')) {
-        host.chop(1);
-    }
-
-    if (host.isEmpty() || host.compare(QLatin1String("localhost"), Qt::CaseInsensitive) == 0 || host.startsWith(QLatin1String("127.")) ||
+    if (host.compare(QLatin1String("localhost"), Qt::CaseInsensitive) == 0 || host.startsWith(QLatin1String("127.")) ||
         host == QLatin1String("::1") || host == QLatin1String("0.0.0.0")) {
         return QStringLiteral("127.0.*.*");
     }
@@ -491,6 +497,8 @@ void DiscordRPC::clearActivity()
     m_isLanServer = false;
     m_inGameState = InGameState::MainMenu;
     m_gameStateDetail.clear();
+    m_serverHost.clear();
+    m_lastConnectAttemptMs = 0;
     m_worldName.clear();
     m_instanceName.clear();
     m_mcVersion.clear();
@@ -529,7 +537,7 @@ void DiscordRPC::clearActivity()
     }
 }
 
-void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
+void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid, const QString& initialServerAddress)
 {
     if (!APPLICATION->settings()->get("DiscordRPCEnabled").toBool()) {
         return;
@@ -543,9 +551,11 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
     m_instanceName = instance->name();
     m_gamePid = pid;
     m_sessionStartTimestamp = QDateTime::currentSecsSinceEpoch();
-    // Start directly at MainMenu so Rich Presence never gets stuck on "Starting up..."
-    m_inGameState = InGameState::MainMenu;
     m_gameStateDetail.clear();
+    m_serverHost = sanitizeServerAddress(initialServerAddress);
+    m_lastConnectAttemptMs = !m_serverHost.isEmpty() ? QDateTime::currentMSecsSinceEpoch() : 0;
+    // Start at Multiplayer if launched directly into a server, otherwise MainMenu
+    m_inGameState = !m_serverHost.isEmpty() ? InGameState::Multiplayer : InGameState::MainMenu;
     m_worldName.clear();
     m_isLanServer = false;
     m_windowDetected = false;
@@ -594,6 +604,20 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid)
     }
 }
 
+void DiscordRPC::refreshActivity()
+{
+    if (!APPLICATION->settings()->get("DiscordRPCEnabled").toBool()) {
+        if (m_hasActiveActivity) {
+            clearActivity();
+        }
+        return;
+    }
+    if (m_hasActiveActivity) {
+        m_hasSentActivity = false;
+        rebuildActivity();
+    }
+}
+
 void DiscordRPC::pollGameWindow()
 {
     if (!m_hasActiveActivity || m_gamePid <= 0) {
@@ -628,27 +652,35 @@ void DiscordRPC::pollGameWindow()
     // - "Minecraft 1.21.1" (Main Menu)
     if (title.contains(QLatin1String(" - Singleplayer"), Qt::CaseInsensitive)) {
         m_isLanServer = false;
+        m_serverHost.clear();
         if (m_inGameState != InGameState::Singleplayer) {
             QString dim = m_gameStateDetail.isEmpty() ? QStringLiteral("Overworld") : m_gameStateDetail;
             updateInGameState(InGameState::Singleplayer, dim);
         }
     } else if (title.contains(QLatin1String(" - Multiplayer (Realms)"), Qt::CaseInsensitive)) {
         m_isLanServer = false;
+        m_serverHost.clear();
         updateInGameState(InGameState::Realms);
     } else if (title.contains(QLatin1String(" - Multiplayer (LAN)"), Qt::CaseInsensitive)) {
         if (!m_isLanServer || m_inGameState != InGameState::Multiplayer) {
             m_isLanServer = true;
-            updateInGameState(InGameState::Multiplayer, m_gameStateDetail);
+            updateInGameState(InGameState::Multiplayer, m_serverHost);
         }
     } else if (title.contains(QLatin1String(" - Multiplayer"), Qt::CaseInsensitive)) {
         if (m_isLanServer || m_inGameState != InGameState::Multiplayer) {
             m_isLanServer = false;
-            updateInGameState(InGameState::Multiplayer, m_gameStateDetail);
+            updateInGameState(InGameState::Multiplayer, m_serverHost);
         }
     } else if (title.startsWith(QLatin1String("Minecraft"), Qt::CaseInsensitive) &&
                !title.contains(QLatin1String(" - "), Qt::CaseInsensitive)) {
+        // Do NOT reset Multiplayer state or wipe m_serverHost while still on the "Connecting to server..." handshake screen
+        const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        if (m_inGameState == InGameState::Multiplayer && m_lastConnectAttemptMs > 0 && (nowMs - m_lastConnectAttemptMs) < 20000) {
+            return;
+        }
         if (m_inGameState != InGameState::MainMenu) {
             m_worldName.clear();
+            m_serverHost.clear();
             m_isLanServer = false;
             updateInGameState(InGameState::MainMenu);
         }
@@ -672,15 +704,24 @@ void DiscordRPC::rebuildActivity()
     activity.processId = m_gamePid;
     activity.startTimestamp = m_sessionStartTimestamp;
 
-    // Build concise Line 2 (state): "<InstanceName> • <Loader> <Version> (<N> mods)"
+    // Avoid repeating the MC version or loader if the Instance Name already contains it
+    const bool instanceHasVersion = showInstanceName && !m_instanceName.isEmpty() && !m_mcVersion.isEmpty() &&
+                                    m_instanceName.contains(m_mcVersion, Qt::CaseInsensitive);
+    const bool instanceHasLoader = showInstanceName && !m_instanceName.isEmpty() && !m_loaderStr.isEmpty() &&
+                                   m_instanceName.contains(m_loaderStr, Qt::CaseInsensitive);
+
+    const bool effectiveShowVersion = showVersion && !m_mcVersion.isEmpty() && !instanceHasVersion;
+    const bool effectiveShowLoader = showLoader && !m_loaderStr.isEmpty() && !instanceHasLoader;
+
+    // Build concise visible Line 2 (state)
     QStringList metaParts;
-    if (showLoader && !m_loaderStr.isEmpty()) {
-        if (showVersion && !m_mcVersion.isEmpty()) {
+    if (effectiveShowLoader) {
+        if (effectiveShowVersion) {
             metaParts << QString("%1 %2").arg(m_loaderStr, m_mcVersion);
         } else {
             metaParts << m_loaderStr;
         }
-    } else if (showVersion && !m_mcVersion.isEmpty()) {
+    } else if (effectiveShowVersion) {
         metaParts << QString("Minecraft %1").arg(m_mcVersion);
     }
 
@@ -689,13 +730,25 @@ void DiscordRPC::rebuildActivity()
     }
 
     QString techSummary = metaParts.join(QStringLiteral(" • "));
+
+    // Full technical tooltip for the large icon hover
+    QStringList fullTooltipParts;
+    if (!m_loaderStr.isEmpty() && !m_mcVersion.isEmpty()) {
+        fullTooltipParts << QString("%1 %2").arg(m_loaderStr, m_mcVersion);
+    } else if (!m_mcVersion.isEmpty()) {
+        fullTooltipParts << QString("Minecraft %1").arg(m_mcVersion);
+    } else if (!m_loaderStr.isEmpty()) {
+        fullTooltipParts << m_loaderStr;
+    }
+    if (m_modCount > 0) {
+        fullTooltipParts << QString("%1 %2").arg(m_modCount).arg(m_modCount == 1 ? "mod" : "mods");
+    }
+    QString fullTooltip = fullTooltipParts.join(QStringLiteral(" • "));
+
     QString stateLine;
     if (showInstanceName && !m_instanceName.isEmpty()) {
-        if (!techSummary.isEmpty() && m_instanceName.compare(techSummary, Qt::CaseInsensitive) != 0 &&
-            m_instanceName.compare(m_mcVersion, Qt::CaseInsensitive) != 0) {
+        if (!techSummary.isEmpty() && m_instanceName.compare(techSummary, Qt::CaseInsensitive) != 0) {
             stateLine = QString("%1 • %2").arg(m_instanceName, techSummary);
-        } else if (!techSummary.isEmpty()) {
-            stateLine = techSummary;
         } else {
             stateLine = m_instanceName;
         }
@@ -723,15 +776,11 @@ void DiscordRPC::rebuildActivity()
                 activity.state = stateLine;
                 break;
             case InGameState::Multiplayer: {
+                const QString hostToShow = !m_serverHost.isEmpty() ? m_serverHost : sanitizeServerAddress(m_gameStateDetail);
                 if (m_isLanServer) {
                     activity.details = QStringLiteral("Playing Multiplayer (LAN)");
-                } else if (showServerAddress && !m_gameStateDetail.isEmpty()) {
-                    QString safeHost = sanitizeServerAddress(m_gameStateDetail);
-                    if (!safeHost.isEmpty()) {
-                        activity.details = QString("Playing Multiplayer on %1").arg(safeHost);
-                    } else {
-                        activity.details = QStringLiteral("Playing Multiplayer");
-                    }
+                } else if (showServerAddress && !hostToShow.isEmpty()) {
+                    activity.details = QString("Playing Multiplayer on %1").arg(hostToShow);
                 } else {
                     activity.details = QStringLiteral("Playing Multiplayer");
                 }
@@ -753,7 +802,7 @@ void DiscordRPC::rebuildActivity()
         }
     }
 
-    activity.largeText = !techSummary.isEmpty() ? techSummary : QStringLiteral("Minecraft: Java Edition");
+    activity.largeText = !fullTooltip.isEmpty() ? fullTooltip : QStringLiteral("Minecraft: Java Edition");
 
     m_currentActivity = activity;
     if (m_ready && !m_ipcDelayedUntilWindow) {
@@ -779,7 +828,7 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
 
     static const QRegularExpression reWindowInit(QStringLiteral(R"(Backend library|LWJGL Version|OpenAL initialized|Sound engine started)"),
                                                  QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reConnect(QStringLiteral(R"(Connecting to\s+([^\s,]+),\s*(\d{1,5})\b)"),
+    static const QRegularExpression reConnect(QStringLiteral(R"(Connecting to\s+([^\s,]+?)\.?(?:,\s*|:)(\d{1,5})\b)"),
                                               QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reRealms(QStringLiteral(R"(Connecting to realms|RealmsClient)"),
                                              QRegularExpression::CaseInsensitiveOption);
@@ -828,25 +877,32 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
         // Realms
         if (reRealms.match(line).hasMatch()) {
             m_isLanServer = false;
+            m_serverHost.clear();
             updateInGameState(InGameState::Realms);
             continue;
         }
 
-        // Multiplayer (requires Vanilla "Connecting to <host>, <port>" + valid hostname/IP)
+        // Multiplayer (supports Vanilla "Connecting to <host>, <port>", InetSocketAddress "<host>/<ip>, <port>", and "<host>:<port>")
         auto matchConnect = reConnect.match(line);
         if (matchConnect.hasMatch()) {
-            QString host = matchConnect.captured(1).trimmed();
+            QString rawHost = matchConnect.captured(1).trimmed();
             QString port = matchConnect.captured(2).trimmed();
-            if (isValidMinecraftServerHost(host, port) && host.compare(QLatin1String("realms"), Qt::CaseInsensitive) != 0) {
-                m_isLanServer = false;
-                updateInGameState(InGameState::Multiplayer, host);
-                continue;
+            if (isValidMinecraftServerHost(rawHost, port)) {
+                QString cleanHost = sanitizeServerAddress(rawHost);
+                if (!cleanHost.isEmpty() && cleanHost.compare(QLatin1String("realms"), Qt::CaseInsensitive) != 0) {
+                    m_isLanServer = false;
+                    m_serverHost = cleanHost;
+                    m_lastConnectAttemptMs = QDateTime::currentMSecsSinceEpoch();
+                    updateInGameState(InGameState::Multiplayer, m_serverHost);
+                    continue;
+                }
             }
         }
 
         // Singleplayer
         if (reSingleplayer.match(line).hasMatch()) {
             m_isLanServer = false;
+            m_serverHost.clear();
             QString dim = m_gameStateDetail.isEmpty() ? QStringLiteral("Overworld") : m_gameStateDetail;
             updateInGameState(InGameState::Singleplayer, dim);
             continue;
@@ -872,6 +928,8 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
         // Return to Main Menu on disconnect or server stop
         if (reDisconnectOrMenu.match(line).hasMatch()) {
             m_worldName.clear();
+            m_serverHost.clear();
+            m_lastConnectAttemptMs = 0;
             m_isLanServer = false;
             updateInGameState(InGameState::MainMenu);
             continue;
