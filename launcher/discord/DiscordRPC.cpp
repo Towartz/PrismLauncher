@@ -106,8 +106,52 @@ QString getProcessWindowTitleWin32(qint64 gamePid, quintptr& cachedHandle)
 }
 #endif
 
+bool isModOrChatNoiseLine(const QString& line)
+{
+    return line.contains(QLatin1String("[CHAT]"), Qt::CaseInsensitive) || line.contains(QLatin1String("voicechat"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("voice server"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("voice chat"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("plasmovoice"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("[Essential"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("CraftPresence"), Qt::CaseInsensitive) ||
+           line.contains(QLatin1String("websocket"), Qt::CaseInsensitive) || line.contains(QLatin1String("telemetry"), Qt::CaseInsensitive);
+}
+
+bool isValidMinecraftServerHost(const QString& rawHost, const QString& portStr)
+{
+    bool portOk = false;
+    int port = portStr.toInt(&portOk);
+    if (!portOk || port < 1 || port > 65535) {
+        return false;
+    }
+
+    QString host = rawHost.trimmed();
+    while (host.endsWith('.')) {
+        host.chop(1);
+    }
+    if (host.isEmpty()) {
+        return false;
+    }
+    if (host.compare(QLatin1String("localhost"), Qt::CaseInsensitive) == 0) {
+        return true;
+    }
+    // IPv6
+    if (host.contains(':')) {
+        return true;
+    }
+    // Must contain at least one dot (domain name or IPv4), never a bare word like "voice"
+    if (!host.contains('.')) {
+        return false;
+    }
+    static const QRegularExpression reValidHost(QStringLiteral(R"(^(?:(?:\d{1,3}\.){3}\d{1,3}|(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})$)"));
+    return reValidHost.match(host).hasMatch();
+}
+
 bool hasRelevantLogKeyword(const QString& line)
 {
+    if (isModOrChatNoiseLine(line)) {
+        return false;
+    }
     return line.contains(QLatin1String("Connecting to"), Qt::CaseInsensitive) ||
            line.contains(QLatin1String("Starting integrated"), Qt::CaseInsensitive) ||
            line.contains(QLatin1String("ServerLevel["), Qt::CaseInsensitive) ||
@@ -735,11 +779,11 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
 
     static const QRegularExpression reWindowInit(QStringLiteral(R"(Backend library|LWJGL Version|OpenAL initialized|Sound engine started)"),
                                                  QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reConnect(QStringLiteral(R"((?:Connecting to|Connecting to server)\s+([^\s,]+)(?:,\s*(\d+))?)"),
+    static const QRegularExpression reConnect(QStringLiteral(R"(Connecting to\s+([^\s,]+),\s*(\d{1,5})\b)"),
                                               QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reRealms(QStringLiteral(R"(Connecting to realms|RealmsClient)"),
                                              QRegularExpression::CaseInsensitiveOption);
-    static const QRegularExpression reSingleplayer(QStringLiteral(R"(Starting integrated minecraft server|Loaded \d+ advancements)"),
+    static const QRegularExpression reSingleplayer(QStringLiteral(R"(Starting integrated minecraft server|Saving and pausing game)"),
                                                    QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reWorldName(QStringLiteral(R"((?:ServerLevel\[([^\]]+)\]|Loading level ['"]([^'"]+)['"]))"),
                                                 QRegularExpression::CaseInsensitiveOption);
@@ -747,7 +791,7 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
                                                 QRegularExpression::CaseInsensitiveOption);
     static const QRegularExpression reDisconnectOrMenu(
         QStringLiteral(
-            R"(Sound engine started|OpenAL initialized|Stopping integrated server|Stopping worker threads|Disconnected from server|Disconnecting from server|Lost connection|Failed to connect to server|AnnotatedConnectException|UnknownHostException)"),
+            R"(Stopping integrated server|Stopping worker threads|Disconnected from server|Disconnecting from server|Failed to connect to server|AnnotatedConnectException|UnknownHostException)"),
         QRegularExpression::CaseInsensitiveOption);
 
     const bool showGameState = APPLICATION->settings()->get("DiscordRPCShowGameState").toBool();
@@ -788,11 +832,12 @@ void DiscordRPC::handleLogLines(const QStringList& lines)
             continue;
         }
 
-        // Multiplayer
+        // Multiplayer (requires Vanilla "Connecting to <host>, <port>" + valid hostname/IP)
         auto matchConnect = reConnect.match(line);
         if (matchConnect.hasMatch()) {
             QString host = matchConnect.captured(1).trimmed();
-            if (!host.isEmpty() && host.compare(QLatin1String("realms"), Qt::CaseInsensitive) != 0) {
+            QString port = matchConnect.captured(2).trimmed();
+            if (isValidMinecraftServerHost(host, port) && host.compare(QLatin1String("realms"), Qt::CaseInsensitive) != 0) {
                 m_isLanServer = false;
                 updateInGameState(InGameState::Multiplayer, host);
                 continue;
