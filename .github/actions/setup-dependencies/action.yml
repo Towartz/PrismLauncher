@@ -59,6 +59,7 @@ runs:
       with:
         variant: ${{ runner.os == 'macOS' && 'ccache' || 'sccache' }}
         create-symlink: ${{ runner.os != 'Windows' }}
+        max-size: 2G
         key: ${{ runner.os }}-${{ runner.arch }}-${{ inputs.artifact-name }}-${{ inputs.build-type }}-${{ runner.os == 'macOS' && 'ccache' || 'sccache' }}
 
     - name: Use ccache
