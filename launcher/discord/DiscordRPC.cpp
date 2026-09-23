@@ -28,17 +28,23 @@
 #include <QJsonValue>
 #include <QRegularExpression>
 
-#ifdef Q_OS_WIN
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
-#endif
-
 #include "Application.h"
 #include "minecraft/MinecraftInstance.h"
 #include "minecraft/PackProfile.h"
 #include "settings/SettingsObject.h"
+
+#ifdef Q_OS_WIN
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#ifdef OPTIONAL
+#undef OPTIONAL
+#endif
+#endif
 
 namespace {
 #ifdef Q_OS_WIN
