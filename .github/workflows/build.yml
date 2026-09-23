@@ -120,7 +120,7 @@ jobs:
 
       - name: Configure project
         run: |
-          cmake --preset "$CMAKE_PRESET" -D Launcher_USE_PCH=OFF -D VCPKG_HOST_TRIPLET="$VCPKG_TRIPLET" -D VCPKG_TARGET_TRIPLET="$VCPKG_TRIPLET"
+          cmake --preset "$CMAKE_PRESET" -D Launcher_USE_PCH=${{ runner.os == 'Windows' && 'ON' || 'OFF' }} -D VCPKG_HOST_TRIPLET="$VCPKG_TRIPLET" -D VCPKG_TARGET_TRIPLET="$VCPKG_TRIPLET"
 
       - name: Run build
         run: |
