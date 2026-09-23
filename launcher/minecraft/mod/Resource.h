@@ -217,4 +217,6 @@ class Resource {
     QString m_sizeStr;
     qint64 m_sizeInfo = 0;
     std::uintmax_t m_hardLinkCount = 0;
+    mutable std::optional<bool> m_isSymLinkUnderCache;
+    mutable QString m_cachedInstPath;
 };

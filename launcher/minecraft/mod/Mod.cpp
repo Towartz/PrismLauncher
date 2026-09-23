@@ -263,13 +263,15 @@ auto Mod::authors() const -> QStringList
     return details().authors;
 }
 
-void Mod::finishResolvingWithDetails(ModDetails&& details)
+void Mod::finishResolvingWithDetails(ModDetails&& details, const QImage& preloadedIcon)
 {
     m_isResolving = false;
     m_isResolved = true;
 
     m_localDetails = std::move(details);
-    if (!iconPath().isEmpty()) {
+    if (!preloadedIcon.isNull()) {
+        setIcon(preloadedIcon);
+    } else if (!iconPath().isEmpty()) {
         m_packImageCacheKey.wasReadAttempt = false;
     }
 }
@@ -294,23 +296,38 @@ QPixmap Mod::setIcon(const QImage& newImage) const
         PixmapCache::remove(m_packImageCacheKey.key);
     }
 
-    // scale the image to avoid flooding the pixmapcache
-    auto pixmap =
-        QPixmap::fromImage(newImage.scaled({ 64, 64 }, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    // scale the image to avoid flooding the pixmapcache (skip if already <= 64x64 from worker thread)
+    auto scaledImg = (newImage.width() <= 64 && newImage.height() <= 64)
+                         ? newImage
+                         : newImage.scaled({ 64, 64 }, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    auto pixmap = QPixmap::fromImage(scaledImg);
 
     m_packImageCacheKey.key = PixmapCache::insert(pixmap);
     m_packImageCacheKey.wasEverUsed = true;
     m_packImageCacheKey.wasReadAttempt = true;
+    m_packImageCacheKey.cachedScaledPixmap =
+        QPixmap::fromImage(scaledImg.scaled({ 32, 32 }, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    m_packImageCacheKey.cachedScaledSize = { 32, 32 };
+    m_packImageCacheKey.cachedScaledMode = Qt::KeepAspectRatio;
     return pixmap;
 }
 
 QPixmap Mod::icon(QSize size, Qt::AspectRatioMode mode) const
 {
-    auto pixmapTransform = [&size, &mode](QPixmap pixmap) {
+    if (!size.isNull() && !m_packImageCacheKey.cachedScaledPixmap.isNull() && m_packImageCacheKey.cachedScaledSize == size &&
+        m_packImageCacheKey.cachedScaledMode == mode) {
+        return m_packImageCacheKey.cachedScaledPixmap;
+    }
+
+    auto pixmapTransform = [this, &size, &mode](QPixmap pixmap) {
         if (size.isNull()) {
             return pixmap;
         }
-        return pixmap.scaled(size, mode, Qt::SmoothTransformation);
+        auto scaled = (pixmap.size() == size) ? pixmap : pixmap.scaled(size, mode, Qt::SmoothTransformation);
+        m_packImageCacheKey.cachedScaledPixmap = scaled;
+        m_packImageCacheKey.cachedScaledSize = size;
+        m_packImageCacheKey.cachedScaledMode = mode;
+        return scaled;
     };
 
     QPixmap cachedImage;

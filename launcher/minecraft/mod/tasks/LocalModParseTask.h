@@ -17,9 +17,9 @@ ModDetails ReadLiteModInfo(const QByteArray& contents);
 
 enum class ProcessingLevel { Full, BasicInfoOnly };
 
-bool process(Mod& mod, ProcessingLevel level = ProcessingLevel::Full);
+bool process(Mod& mod, ProcessingLevel level = ProcessingLevel::Full, QByteArray* outIconData = nullptr);
 
-bool processZIP(Mod& mod, ProcessingLevel level = ProcessingLevel::Full);
+bool processZIP(Mod& mod, ProcessingLevel level = ProcessingLevel::Full, QByteArray* outIconData = nullptr);
 bool processLitemod(Mod& mod, ProcessingLevel level = ProcessingLevel::Full);
 
 /** Checks whether a file is valid as a mod or not. */
@@ -34,6 +34,7 @@ class LocalModParseTask : public Task {
    public:
     struct Result {
         ModDetails details;
+        QImage iconImage;
     };
     using ResultPtr = std::shared_ptr<Result>;
     ResultPtr result() const { return m_result; }

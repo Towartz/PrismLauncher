@@ -287,8 +287,6 @@ void ModFolderModel::onParseSucceeded(int ticket, const QString& resourceId)
         return;
     }
 
-    int row = m_resourcesIndex[resourceId];
-
     const auto& parseTask = *iter;
     auto* castTask = static_cast<LocalModParseTask*>(parseTask.get());
 
@@ -299,15 +297,15 @@ void ModFolderModel::onParseSucceeded(int ticket, const QString& resourceId)
     auto result = castTask->result();
     if (result && resource) {
         auto* mod = static_cast<Mod*>(resource.get());
-        mod->finishResolvingWithDetails(std::move(result->details));
+        mod->finishResolvingWithDetails(std::move(result->details), result->iconImage);
     }
-    emit dataChanged(index(row, RequiresColumn), index(row, RequiredByColumn));
+    ResourceFolderModel::onParseSucceeded(ticket, resourceId);
 }
 
 namespace {
-Mod* findById(QSet<Mod*> mods, const QString& resourceId)
+Mod* findById(const QSet<Mod*>& mods, const QString& resourceId)
 {
-    auto found = std::ranges::find_if(mods, [resourceId](Mod* m) { return m->modId() == resourceId; });
+    auto found = std::ranges::find_if(mods, [&resourceId](Mod* m) { return m->modId() == resourceId; });
     return found != mods.end() ? *found : nullptr;
 }
 }  // namespace
@@ -323,16 +321,28 @@ void ModFolderModel::onParseFinished()
     m_requires.clear();
     m_requiredBy.clear();
 
-    auto findByProjectID = [mods](const QVariant& modId, ModPlatform::ResourceProvider provider) -> Mod* {
-        auto found = std::ranges::find_if(mods, [modId, provider](Mod* m) {
-            return m->metadata() && m->metadata()->provider == provider && m->metadata()->projectId == modId;
-        });
-        return found != mods.end() ? *found : nullptr;
+    QHash<QString, Mod*> modById;
+    QHash<QString, Mod*> modByProjectKey;
+    modById.reserve(mods.size());
+    modByProjectKey.reserve(mods.size());
+
+    auto makeProjectKey = [](ModPlatform::ResourceProvider provider, const QVariant& projectId) {
+        return QStringLiteral("%1:%2").arg(static_cast<int>(provider)).arg(projectId.toString());
     };
+
+    for (auto* mod : mods) {
+        if (!mod->modId().isEmpty()) {
+            modById.insert(mod->modId(), mod);
+        }
+        if (mod->metadata() && mod->metadata()->projectId.isValid()) {
+            modByProjectKey.insert(makeProjectKey(mod->metadata()->provider, mod->metadata()->projectId), mod);
+        }
+    }
+
     for (auto* mod : mods) {
         auto id = mod->modId();
         for (const auto& dep : mod->dependencies()) {
-            auto* d = findById(mods, dep);
+            auto* d = modById.value(dep, nullptr);
             if (d) {
                 m_requires[id] << d;
                 m_requiredBy[d->modId()] << mod;
@@ -341,7 +351,7 @@ void ModFolderModel::onParseFinished()
         if (mod->metadata()) {
             for (const auto& dep : mod->metadata()->dependencies) {
                 if (dep.type == ModPlatform::DependencyType::REQUIRED) {
-                    auto* d = findByProjectID(dep.addonId, mod->metadata()->provider);
+                    auto* d = modByProjectKey.value(makeProjectKey(mod->metadata()->provider, dep.addonId), nullptr);
                     if (d) {
                         m_requires[id] << d;
                         m_requiredBy[d->modId()] << mod;
@@ -350,14 +360,28 @@ void ModFolderModel::onParseFinished()
             }
         }
     }
+
+    int minChangedRow = -1;
+    int maxChangedRow = -1;
     for (auto* mod : mods) {
         auto id = mod->modId();
-        if (mod->requiredByCount() != m_requiredBy[id].count() || mod->requiresCount() != m_requires[id].count()) {
-            mod->setRequiredByCount(static_cast<int>(m_requiredBy[id].count()));
-            mod->setRequiresCount(static_cast<int>(m_requires[id].count()));
-            int row = m_resourcesIndex[mod->internalId()];
-            emit dataChanged(index(row), index(row, columnCount(QModelIndex()) - 1));
+        int newReqBy = static_cast<int>(m_requiredBy[id].count());
+        int newReq = static_cast<int>(m_requires[id].count());
+        if (mod->requiredByCount() != newReqBy || mod->requiresCount() != newReq) {
+            mod->setRequiredByCount(newReqBy);
+            mod->setRequiresCount(newReq);
+            auto idxIt = m_resourcesIndex.constFind(mod->internalId());
+            if (idxIt != m_resourcesIndex.constEnd()) {
+                int row = idxIt.value();
+                if (minChangedRow == -1 || row < minChangedRow)
+                    minChangedRow = row;
+                if (row > maxChangedRow)
+                    maxChangedRow = row;
+            }
         }
+    }
+    if (minChangedRow != -1 && maxChangedRow >= minChangedRow) {
+        emit dataChanged(index(minChangedRow, RequiresColumn), index(maxChangedRow, RequiredByColumn));
     }
 }
 

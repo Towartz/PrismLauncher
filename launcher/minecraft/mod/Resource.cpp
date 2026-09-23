@@ -77,6 +77,8 @@ void Resource::parseFile()
     }
 
     m_changedDateTime = m_fileInfo.lastModified();
+    m_isSymLinkUnderCache.reset();
+    m_cachedInstPath.clear();
 }
 
 auto Resource::name() const -> QString
@@ -335,16 +337,23 @@ auto Resource::destroyMetadata(const QDir& indexDir) -> void
 
 bool Resource::isSymLinkUnder(const QString& instPath) const
 {
-    if (isSymLink()) {
-        return true;
+    if (m_isSymLinkUnderCache.has_value() && m_cachedInstPath == instPath) {
+        return m_isSymLinkUnderCache.value();
     }
 
-    auto instDir = QDir(instPath);
+    bool result = false;
+    if (isSymLink()) {
+        result = true;
+    } else {
+        auto instDir = QDir(instPath);
+        auto relAbsPath = instDir.relativeFilePath(m_fileInfo.absoluteFilePath());
+        auto relCanonPath = instDir.relativeFilePath(m_fileInfo.canonicalFilePath());
+        result = (relAbsPath != relCanonPath);
+    }
 
-    auto relAbsPath = instDir.relativeFilePath(m_fileInfo.absoluteFilePath());
-    auto relCanonPath = instDir.relativeFilePath(m_fileInfo.canonicalFilePath());
-
-    return relAbsPath != relCanonPath;
+    m_cachedInstPath = instPath;
+    m_isSymLinkUnderCache = result;
+    return result;
 }
 
 bool Resource::isMoreThanOneHardLink() const

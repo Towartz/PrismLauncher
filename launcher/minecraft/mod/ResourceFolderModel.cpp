@@ -964,6 +964,7 @@ void ResourceFolderModel::applyUpdates(QSet<QString>& currentSet, QSet<QString>&
     }
 
     // add new resources to the end
+    QList<Resource::Ptr> toResolve;
     {
         QSet<QString> addedSet = newSet;
         addedSet.subtract(currentSet);
@@ -973,18 +974,19 @@ void ResourceFolderModel::applyUpdates(QSet<QString>& currentSet, QSet<QString>&
             beginInsertRows(QModelIndex(), static_cast<int>(m_resources.size()),
                             static_cast<int>(m_resources.size() + addedSet.size() - 1));
 
+            toResolve.reserve(addedSet.size());
             for (const auto& added : addedSet) {
                 auto res = newResources[added];
                 res->updateIssues(m_instance);
                 m_resources.append(res);
-                resolveResource(m_resources.last());
+                toResolve.append(res);
             }
 
             endInsertRows();
         }
     }
 
-    // update index
+    // update index before launching resolve tasks so O(1) index lookups succeed immediately
     {
         m_resourcesIndex.clear();
         int idx = 0;
@@ -993,9 +995,20 @@ void ResourceFolderModel::applyUpdates(QSet<QString>& currentSet, QSet<QString>&
             idx++;
         }
     }
+
+    for (const auto& res : toResolve) {
+        resolveResource(res);
+    }
 }
 Resource::Ptr ResourceFolderModel::find(QString id)
 {
+    auto idxIt = m_resourcesIndex.constFind(id);
+    if (idxIt != m_resourcesIndex.constEnd()) {
+        int row = idxIt.value();
+        if (row >= 0 && row < m_resources.size() && m_resources[row]->internalId() == id) {
+            return m_resources[row];
+        }
+    }
     auto iter =
         std::find_if(m_resources.constBegin(), m_resources.constEnd(), [&id](const Resource::Ptr& r) { return r->internalId() == id; });
     if (iter == m_resources.constEnd()) {

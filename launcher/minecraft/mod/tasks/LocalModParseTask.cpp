@@ -555,11 +555,11 @@ ModDetails ReadNilModInfo(const QByteArray& contents, QString fname)
     return details;
 }
 
-bool process(Mod& mod, ProcessingLevel level)
+bool process(Mod& mod, ProcessingLevel level, QByteArray* outIconData)
 {
     switch (mod.type()) {
         case ResourceType::ZIPFILE:
-            return processZIP(mod, level);
+            return processZIP(mod, level, outIconData);
         case ResourceType::LITEMOD:
             return processLitemod(mod);
         default:
@@ -568,7 +568,7 @@ bool process(Mod& mod, ProcessingLevel level)
     }
 }
 
-bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level)
+bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level, QByteArray* outIconData)
 {
     ModDetails details;
 
@@ -577,13 +577,38 @@ bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level)
     bool baseForgePopulated = false;
     bool isNilMod = false;
     bool isValid = false;
+    bool metaComplete = false;
     QString manifestVersion = {};
     QByteArray nilData = {};
     QString nilFilePath = {};
 
-    if (!zip.parse([&details, &baseForgePopulated, &manifestVersion, &isValid, &nilData, &isNilMod, &nilFilePath](
-                       MMCZip::ArchiveReader::File* file, bool& stop) {
+    auto normalizeIconPath = [](QString p) {
+        while (p.startsWith('/')) {
+            p.remove(0, 1);
+        }
+        return p;
+    };
+
+    auto checkShouldStop = [&]() {
+        if (!metaComplete) {
+            return false;
+        }
+        if (!outIconData || details.icon_file.isEmpty()) {
+            return true;
+        }
+        return !outIconData->isEmpty();
+    };
+
+    if (!zip.parse([&details, &baseForgePopulated, &manifestVersion, &isValid, &metaComplete, &nilData, &isNilMod, &nilFilePath,
+                    outIconData, &normalizeIconPath, &checkShouldStop](MMCZip::ArchiveReader::File* file, bool& stop) {
             auto filePath = file->filename();
+
+            if (outIconData && outIconData->isEmpty() && !details.icon_file.isEmpty() &&
+                normalizeIconPath(filePath) == normalizeIconPath(details.icon_file)) {
+                *outIconData = file->readAll();
+                stop = checkShouldStop();
+                return true;
+            }
 
             if (filePath == "META-INF/mods.toml" || filePath == "META-INF/neoforge.mods.toml") {
                 details = ReadMCModTOML(file->readAll());
@@ -591,8 +616,9 @@ bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level)
                 if (details.version == "${file.jarVersion}" && !manifestVersion.isEmpty()) {
                     details.version = manifestVersion;
                 }
-                stop = details.version != "${file.jarVersion}";
+                metaComplete = details.version != "${file.jarVersion}";
                 baseForgePopulated = true;
+                stop = checkShouldStop();
                 return true;
             }
             if (filePath == "META-INF/MANIFEST.MF") {
@@ -613,32 +639,37 @@ bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level)
                 }
                 if (baseForgePopulated) {
                     details.version = manifestVersion;
-                    stop = true;
+                    metaComplete = true;
+                    stop = checkShouldStop();
                 }
                 return true;
             }
             if (filePath == "mcmod.info") {
                 details = ReadMCModInfo(file->readAll());
                 isValid = true;
-                stop = true;
+                metaComplete = true;
+                stop = checkShouldStop();
                 return true;
             }
             if (filePath == "quilt.mod.json") {
                 details = ReadQuiltModInfo(file->readAll());
                 isValid = true;
-                stop = true;
+                metaComplete = true;
+                stop = checkShouldStop();
                 return true;
             }
             if (filePath == "fabric.mod.json") {
                 details = ReadFabricModInfo(file->readAll());
                 isValid = true;
-                stop = true;
+                metaComplete = true;
+                stop = checkShouldStop();
                 return true;
             }
             if (filePath == "forgeversion.properties") {
                 details = ReadForgeInfo(file->readAll());
                 isValid = true;
-                stop = true;
+                metaComplete = true;
+                stop = checkShouldStop();
                 return true;
             }
             if (filePath == "META-INF/nil/mappings.json") {
@@ -666,6 +697,16 @@ bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level)
         isValid = true;
     }
     if (isValid) {
+        if (outIconData && outIconData->isEmpty() && !details.icon_file.isEmpty()) {
+            auto cleanIcon = normalizeIconPath(details.icon_file);
+            if (auto iconFile = zip.goToFile(cleanIcon); iconFile) {
+                *outIconData = iconFile->readAll();
+            } else if (cleanIcon != details.icon_file) {
+                if (auto rawIconFile = zip.goToFile(details.icon_file); rawIconFile) {
+                    *outIconData = rawIconFile->readAll();
+                }
+            }
+        }
         mod.setDetails(details);
         return true;
     }
@@ -759,9 +800,16 @@ bool LocalModParseTask::abort()
 void LocalModParseTask::executeTask()
 {
     Mod mod{ m_modFile };
-    ModUtils::process(mod, ModUtils::ProcessingLevel::Full);
+    QByteArray iconData;
+    ModUtils::process(mod, ModUtils::ProcessingLevel::Full, &iconData);
 
     m_result->details = mod.details();
+    if (!iconData.isEmpty()) {
+        auto img = QImage::fromData(iconData);
+        if (!img.isNull()) {
+            m_result->iconImage = img.scaled({ 64, 64 }, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        }
+    }
 
     if (m_aborted)
         emitAborted();

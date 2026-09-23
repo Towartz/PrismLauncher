@@ -93,7 +93,7 @@ class Mod : public Resource {
     // Delete the metadata only
     void destroyMetadata(QDir& indexDir);
 
-    void finishResolvingWithDetails(ModDetails&& details);
+    void finishResolvingWithDetails(ModDetails&& details, const QImage& preloadedIcon = {});
 
    protected:
     ModDetails m_localDetails;
@@ -104,6 +104,9 @@ class Mod : public Resource {
         QPixmapCache::Key key;
         bool wasEverUsed = false;
         bool wasReadAttempt = false;
+        QPixmap cachedScaledPixmap;
+        QSize cachedScaledSize;
+        Qt::AspectRatioMode cachedScaledMode = Qt::IgnoreAspectRatio;
     } mutable m_packImageCacheKey;
 
     int m_requiredByCount = 0;

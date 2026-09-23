@@ -225,13 +225,18 @@ Qt::ItemFlags InstanceList::flags(const QModelIndex& index) const
 
 GroupId InstanceList::getInstanceGroup(const InstanceId& id) const
 {
-    auto* inst = getInstanceById(id);
-    if (!inst) {
+    if (id.isEmpty()) {
         return {};
     }
-    auto iter = m_instanceGroupIndex.find(inst->id());
-    if (iter != m_instanceGroupIndex.end()) {
+    auto iter = m_instanceGroupIndex.constFind(id);
+    if (iter != m_instanceGroupIndex.cend()) {
         return *iter;
+    }
+    if (auto* inst = getInstanceById(id)) {
+        auto instIter = m_instanceGroupIndex.constFind(inst->id());
+        if (instIter != m_instanceGroupIndex.cend()) {
+            return *instIter;
+        }
     }
     return {};
 }
@@ -480,21 +485,29 @@ QList<InstanceId> InstanceList::discoverInstances()
 {
     QList<InstanceId> out;
     m_instanceRootDirMap.clear();
+    QStringList canonicalInstDirs;
+    canonicalInstDirs.reserve(m_instDirs.size());
+    for (const auto& d : m_instDirs) {
+        auto c = QFileInfo(d).canonicalFilePath();
+        if (!c.isEmpty()) {
+            canonicalInstDirs.append(c);
+        }
+    }
     for (const auto& rootDir : m_instDirs) {
         qInfo() << "Discovering instances in" << rootDir;
         QDirIterator iter(rootDir, QDir::Dirs | QDir::NoDot | QDir::NoDotDot | QDir::Readable | QDir::Hidden, QDirIterator::FollowSymlinks);
         while (iter.hasNext()) {
             QString subDir = iter.next();
             QFileInfo dirInfo(subDir);
-            if (!QFileInfo(FS::PathCombine(subDir, "instance.cfg")).exists()) {
+            if (!QFileInfo::exists(FS::PathCombine(subDir, "instance.cfg"))) {
                 continue;
             }
             // if it is a symlink, ignore it if it goes to ANY configured instance
             if (dirInfo.isSymLink()) {
                 QFileInfo targetInfo(dirInfo.symLinkTarget());
                 QString targetCanonical = targetInfo.canonicalFilePath();
-                bool pointsIntoAnyRoot = std::ranges::any_of(m_instDirs, [&targetCanonical](const QString& otherRoot) {
-                    return targetCanonical.startsWith(QFileInfo(otherRoot).canonicalFilePath());
+                bool pointsIntoAnyRoot = std::ranges::any_of(canonicalInstDirs, [&targetCanonical](const QString& otherRootCanon) {
+                    return targetCanonical.startsWith(otherRootCanon);
                 });
                 if (pointsIntoAnyRoot) {
                     qDebug() << "Ignoring symlink" << subDir << "that leads into a configured instance root";

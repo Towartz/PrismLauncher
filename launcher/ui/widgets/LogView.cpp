@@ -34,9 +34,10 @@
  */
 
 #include "LogView.h"
+#include <QAbstractProxyModel>
 #include <QScrollBar>
 #include <QTextBlock>
-#include <QTextDocumentFragment>
+#include "launch/LogModel.h"
 
 LogView::LogView(QWidget* parent) : QPlainTextEdit(parent)
 {
@@ -102,12 +103,22 @@ void LogView::modelDestroyed(QObject* model)
 
 void LogView::repopulate()
 {
-    auto doc = document();
+    auto* doc = document();
     doc->clear();
     if (!m_model) {
         return;
     }
-    rowsInserted(QModelIndex(), 0, m_model->rowCount() - 1);
+    QAbstractItemModel* src = m_model;
+    while (auto* proxy = qobject_cast<QAbstractProxyModel*>(src)) {
+        src = proxy->sourceModel();
+    }
+    if (auto* logModel = qobject_cast<LogModel*>(src)) {
+        setMaximumBlockCount(logModel->getMaxLines());
+    }
+    int count = m_model->rowCount();
+    if (count > 0) {
+        rowsInserted(QModelIndex(), 0, count - 1);
+    }
 }
 
 void LogView::rowsAboutToBeInserted(const QModelIndex& parent, int first, int last)
@@ -127,11 +138,14 @@ void LogView::rowsAboutToBeInserted(const QModelIndex& parent, int first, int la
 
 void LogView::rowsInserted(const QModelIndex& parent, int first, int last)
 {
-    QTextDocument document;
-    QTextCursor cursor(&document);
+    if (!m_model || first > last) {
+        return;
+    }
 
-    cursor.movePosition(QTextCursor::End);
-    cursor.beginEditBlock();
+    QTextCursor workCursor(document());
+    workCursor.movePosition(QTextCursor::End);
+    workCursor.beginEditBlock();
+    bool docWasEmpty = document()->isEmpty();
     for (int i = first; i <= last; i++) {
         auto idx = m_model->index(i, 0, parent);
         auto text = m_model->data(idx, Qt::DisplayRole).toString();
@@ -140,23 +154,22 @@ void LogView::rowsInserted(const QModelIndex& parent, int first, int last)
         if (font.isValid()) {
             format.setFont(font.value<QFont>());
         }
-        auto fg = m_model->data(idx, Qt::ForegroundRole);
-        if (fg.isValid() && m_colorLines) {
-            format.setForeground(fg.value<QColor>());
+        if (m_colorLines) {
+            auto fg = m_model->data(idx, Qt::ForegroundRole);
+            if (fg.isValid()) {
+                format.setForeground(fg.value<QColor>());
+            }
+            auto bg = m_model->data(idx, Qt::BackgroundRole);
+            if (bg.isValid()) {
+                format.setBackground(bg.value<QColor>());
+            }
         }
-        auto bg = m_model->data(idx, Qt::BackgroundRole);
-        if (bg.isValid() && m_colorLines) {
-            format.setBackground(bg.value<QColor>());
+        if (!docWasEmpty || i > first) {
+            workCursor.insertBlock();
         }
-        cursor.insertText(text, format);
-        cursor.insertBlock();
+        workCursor.insertText(text, format);
     }
-    cursor.endEditBlock();
-
-    QTextDocumentFragment fragment(&document);
-    QTextCursor workCursor = textCursor();
-    workCursor.movePosition(QTextCursor::End);
-    workCursor.insertFragment(fragment);
+    workCursor.endEditBlock();
 
     if (m_scroll && !m_scrolling) {
         m_scrolling = true;
@@ -166,7 +179,6 @@ void LogView::rowsInserted(const QModelIndex& parent, int first, int last)
 
 void LogView::rowsRemoved(const QModelIndex& parent, int first, int last)
 {
-    // TODO: some day... maybe
     Q_UNUSED(parent)
     Q_UNUSED(first)
     Q_UNUSED(last)
