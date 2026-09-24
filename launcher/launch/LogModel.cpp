@@ -47,7 +47,7 @@ void LogModel::append(MessageLevel level, QString line)
         m_numLines--;
         endRemoveRows();
     } else if (m_numLines == m_maxLines - 1 && m_stopOnOverflow) {
-        level = MessageLevel::Fatal;
+        level = MessageLevel::Warning;
         line = m_overflowMessage;
     }
     beginInsertRows(QModelIndex(), m_numLines, m_numLines);
@@ -170,7 +170,7 @@ bool LogModel::isOverFlow()
 MessageLevel LogModel::previousLevel()
 {
     if (m_numLines > 0) {
-        return m_content[m_numLines - 1].level;
+        return m_content[(m_firstLine + m_numLines - 1) % m_maxLines].level;
     }
     return MessageLevel::Unknown;
 }

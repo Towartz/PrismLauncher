@@ -272,6 +272,9 @@ bool LaunchTask::parseXmlLogs(const QString& line, MessageLevel level)
 
 void LaunchTask::onLogLines(const QStringList& lines, MessageLevel defaultLevel)
 {
+    if (m_logModel && m_logModel->isOverFlow()) {
+        return;
+    }
     for (auto& line : lines) {
         onLogLine(line, defaultLevel);
     }
@@ -279,6 +282,9 @@ void LaunchTask::onLogLines(const QStringList& lines, MessageLevel defaultLevel)
 
 void LaunchTask::onLogLine(QString line, MessageLevel level)
 {
+    if (m_logModel && m_logModel->isOverFlow()) {
+        return;
+    }
     if (parseXmlLogs(line, level)) {
         return;
     }

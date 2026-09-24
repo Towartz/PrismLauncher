@@ -692,8 +692,13 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
 
         m_settings->registerSetting("ConsoleFont", resolvedDefaultMonospace);
         m_settings->registerSetting("ConsoleFontSize", defaultSize);
-        m_settings->registerSetting("ConsoleMaxLines", 100000);
-        m_settings->registerSetting("ConsoleOverflowStop", true);
+        m_settings->registerSetting("ConsoleMaxLines", 200000);
+        m_settings->registerSetting("ConsoleOverflowStop", false);
+        m_settings->registerSetting("ConsoleOverflowStopMigratedV1", false);
+        if (!m_settings->get("ConsoleOverflowStopMigratedV1").toBool()) {
+            m_settings->set("ConsoleOverflowStop", false);
+            m_settings->set("ConsoleOverflowStopMigratedV1", true);
+        }
 
         logModel->setMaxLines(getConsoleMaxLines(settings()));
         logModel->setStopOnOverflow(shouldStopOnConsoleOverflow(settings()));
