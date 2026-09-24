@@ -17,7 +17,6 @@
 #include <QShortcut>
 #include <QSplitter>
 #include <QStyledItemDelegate>
-#include <QSvgRenderer>
 #include <QTextBrowser>
 #include <QVBoxLayout>
 
@@ -25,12 +24,12 @@ namespace {
 
 QPixmap renderSvgPixmap(const QByteArray& svgData, QSize size)
 {
-    QSvgRenderer renderer(svgData);
+    QImage img = QImage::fromData(svgData, "SVG");
+    if (!img.isNull()) {
+        return QPixmap::fromImage(img.scaled(size, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
     QPixmap pixmap(size);
     pixmap.fill(Qt::transparent);
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    renderer.render(&painter, QRectF(0, 0, size.width(), size.height()));
     return pixmap;
 }
 
