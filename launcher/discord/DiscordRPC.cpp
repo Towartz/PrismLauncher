@@ -44,9 +44,12 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <bcrypt.h>
-#include <wincrypt.h>
+// clang-format off
 #include <windows.h>
+#include <winternl.h>
+#include <wincrypt.h>
+#include <bcrypt.h>
+// clang-format on
 #ifdef OPTIONAL
 #undef OPTIONAL
 #endif
