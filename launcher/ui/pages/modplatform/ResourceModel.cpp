@@ -110,7 +110,7 @@ auto ResourceModel::data(const QModelIndex& index, int role) const -> QVariant
             v.setValue(pack);
             return v;
         }
-            // Custom data
+        case Qt::DisplayRole:
         case UserDataTypes::TITLE:
             return pack->name;
         case UserDataTypes::DESCRIPTION:
@@ -119,6 +119,26 @@ auto ResourceModel::data(const QModelIndex& index, int role) const -> QVariant
             return pack->isAnyVersionSelected() ? Qt::Checked : Qt::Unchecked;
         case UserDataTypes::INSTALLED:
             return this->isPackInstalled(pack);
+        case UserDataTypes::ICON_URL:
+            return pack->logoUrl;
+        case UserDataTypes::AUTHORS: {
+            QStringList authorList;
+            for (const auto& a : pack->authors) {
+                authorList.append(a.name);
+            }
+            return authorList.join(", ");
+        }
+        case UserDataTypes::PROVIDER:
+            return pack->provider == ModPlatform::ResourceProvider::MODRINTH ? QStringLiteral("Modrinth") : QStringLiteral("CurseForge");
+        case UserDataTypes::SIDE: {
+            if (pack->side == ModPlatform::SideType::ClientSide) {
+                return QStringLiteral("Client");
+            }
+            if (pack->side == ModPlatform::SideType::ServerSide) {
+                return QStringLiteral("Server");
+            }
+            return {};
+        }
         default:
             break;
     }
@@ -128,15 +148,21 @@ auto ResourceModel::data(const QModelIndex& index, int role) const -> QVariant
 
 QHash<int, QByteArray> ResourceModel::roleNames() const
 {
-    QHash<int, QByteArray> roles;
+    QHash<int, QByteArray> roles = QAbstractListModel::roleNames();
 
+    roles[Qt::DisplayRole] = "display";
     roles[Qt::ToolTipRole] = "toolTip";
     roles[Qt::DecorationRole] = "decoration";
     roles[Qt::SizeHintRole] = "sizeHint";
     roles[Qt::UserRole] = "pack";
+    roles[Qt::CheckStateRole] = "checkState";
     roles[UserDataTypes::TITLE] = "title";
     roles[UserDataTypes::DESCRIPTION] = "description";
     roles[UserDataTypes::INSTALLED] = "installed";
+    roles[UserDataTypes::ICON_URL] = "iconUrl";
+    roles[UserDataTypes::AUTHORS] = "author";
+    roles[UserDataTypes::PROVIDER] = "provider";
+    roles[UserDataTypes::SIDE] = "side";
 
     return roles;
 }

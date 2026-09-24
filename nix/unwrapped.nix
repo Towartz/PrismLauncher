@@ -79,6 +79,7 @@ stdenv.mkDerivation {
   buildInputs = [
     cmark
     kdePackages.qtbase
+    kdePackages.qtdeclarative
     kdePackages.qtnetworkauth
     qrencode
     libarchive

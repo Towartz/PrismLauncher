@@ -73,6 +73,7 @@ runs:
           ccache:p
           cmake:p
           ninja:p
+          python:p
 
     - name: List pacman packages (MinGW)
       if: ${{ inputs.msystem != '' }}

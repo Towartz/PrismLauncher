@@ -19,6 +19,10 @@ class ResourcePage;
 }
 
 class BaseInstance;
+class QQuickWidget;
+class QStackedWidget;
+class QToolButton;
+class QmlThemeBridge;
 
 namespace ResourceDownload {
 
@@ -128,6 +132,13 @@ class ResourcePage : public QWidget, public BasePage {
     void refreshVersionComboBox();
     void restoreSelectedVersion(const ModPlatform::IndexedPack::Ptr& currentPack);
 
+    void onQmlItemActivated(int row);
+    void onQmlItemToggled(int row);
+    void cycleViewMode();
+
+   protected:
+    void initQuickWidget();
+
    public:
     BaseInstance& m_baseInstance;
 
@@ -136,6 +147,11 @@ class ResourcePage : public QWidget, public BasePage {
 
     ResourceDownloadDialog* m_parentDialog = nullptr;
     ResourceModel* m_model = nullptr;
+
+    QQuickWidget* m_quickWidget = nullptr;
+    QStackedWidget* m_viewStack = nullptr;
+    QToolButton* m_viewModeButton = nullptr;
+    QmlThemeBridge* m_themeBridge = nullptr;
 
     int m_selectedVersionIndex = -1;
 

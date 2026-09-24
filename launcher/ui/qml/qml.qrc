@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/qml">
+        <file>ResourceBrowser.qml</file>
+        <file>ModCard.qml</file>
+        <file>DownloadProgressRing.qml</file>
+    </qresource>
+</RCC>

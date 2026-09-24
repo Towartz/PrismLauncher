@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-3.0-only
+/*
+ *  Prism Launcher - Minecraft Launcher
+ *  Copyright (C) 2026 Prism Launcher Contributors
+ *
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, version 3.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+import QtQuick
+import QtQuick.Controls
+
+Rectangle {
+    id: root
+    color: theme ? theme.windowBackground : "#1E1E2E"
+
+    property bool isGridMode: true
+    property int selectedRow: -1
+
+    signal itemActivated(int row)
+    signal itemToggled(int row)
+
+    function selectRow(row) {
+        selectedRow = row;
+        if (isGridMode) {
+            gridView.currentIndex = row;
+        } else {
+            listView.currentIndex = row;
+        }
+    }
+
+    // Grid View
+    GridView {
+        id: gridView
+        anchors.fill: parent
+        anchors.margins: 6
+        cellWidth: Math.max(240, Math.floor(width / Math.max(1, Math.floor(width / 260))))
+        cellHeight: 152
+        visible: root.isGridMode
+        clip: true
+        model: resourceModel
+
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+        }
+
+        delegate: ModCard {
+            width: gridView.cellWidth - 4
+            height: 144
+            isGridMode: true
+            isSelected: index === root.selectedRow
+            theme: root.theme
+            onClicked: {
+                root.selectedRow = index;
+                root.itemActivated(index);
+            }
+            onDoubleClicked: {
+                root.itemToggled(index);
+            }
+        }
+    }
+
+    // List View
+    ListView {
+        id: listView
+        anchors.fill: parent
+        anchors.margins: 6
+        spacing: 4
+        visible: !root.isGridMode
+        clip: true
+        model: resourceModel
+
+        ScrollBar.vertical: ScrollBar {
+            policy: ScrollBar.AsNeeded
+        }
+
+        delegate: ModCard {
+            width: listView.width - 12
+            height: 58
+            isGridMode: false
+            isSelected: index === root.selectedRow
+            theme: root.theme
+            onClicked: {
+                root.selectedRow = index;
+                root.itemActivated(index);
+            }
+            onDoubleClicked: {
+                root.itemToggled(index);
+            }
+        }
+    }
+
+    // Empty state placeholder
+    Column {
+        anchors.centerIn: parent
+        spacing: 10
+        visible: (root.isGridMode ? gridView.count === 0 : listView.count === 0)
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "🔍"
+            font.pixelSize: 32
+        }
+
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "No resources found"
+            color: theme ? theme.textSecondary : "#A6ADC8"
+            font.pixelSize: 14
+        }
+    }
+}
