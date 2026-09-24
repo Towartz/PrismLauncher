@@ -22,6 +22,7 @@
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QObject>
+#include <QSslSocket>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -87,6 +88,10 @@ class DiscordRPC : public QObject {
     void onErrorOccurred(QLocalSocket::LocalSocketError socketError);
     void onReconnectTimeout();
     void pollGameWindow();
+    void onGatewayEncrypted();
+    void onGatewayReadyRead();
+    void onGatewayDisconnected();
+    void onGatewayHeartbeat();
 
    private:
     void attemptConnection();
@@ -95,15 +100,29 @@ class DiscordRPC : public QObject {
     void handleMessage(Opcode op, const QByteArray& data);
     void sendActivityPayload();
     void rebuildActivity();
+    QJsonObject buildActivityJson(bool forGateway) const;
+    void connectEmbeddedGateway();
+    void disconnectEmbeddedGateway();
+    void sendGatewayWebSocketFrame(quint8 opcode, const QByteArray& payload);
+    void handleGatewayJson(const QByteArray& jsonBytes);
+    void sendGatewayPresenceUpdate();
+    static QString discoverLocalDiscordToken();
     QString resolvePipePath(int index) const;
     QString getEffectiveClientId() const;
     static QString sanitizeServerAddress(const QString& rawAddress);
 
     QLocalSocket* m_socket = nullptr;
+    QSslSocket* m_gatewaySocket = nullptr;
+    QTimer* m_gatewayHeartbeatTimer = nullptr;
     QTimer* m_reconnectTimer = nullptr;
     QTimer* m_ipcDelayTimer = nullptr;
     QTimer* m_windowPollTimer = nullptr;
     QByteArray m_receiveBuffer;
+    QByteArray m_gatewayBuffer;
+    bool m_gatewayUpgraded = false;
+    bool m_gatewayReady = false;
+    qint64 m_gatewaySeq = -1;
+    QString m_embeddedToken;
     DiscordActivity m_currentActivity;
     DiscordActivity m_lastSentActivity;
     bool m_hasSentActivity = false;

@@ -739,6 +739,8 @@ Application::Application(int& argc, char** argv) : QApplication(argc, argv)
             m_settings->set("DiscordRPCDefaultsV2Migrated", true);
         }
         m_settings->registerSetting("DiscordRPCProcessDetection", true);
+        m_settings->registerSetting("DiscordRPCEmbeddedStatus", true);
+        m_settings->registerSetting("DiscordRPCEmbeddedToken", QString());
 
         // Language
         m_settings->registerSetting("Language", QString());

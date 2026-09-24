@@ -382,6 +382,37 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="discordEmbeddedStatusCheck">
+            <property name="text">
+             <string>Show &amp;Embedded (Console or Game) platform indicator while playing</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QHBoxLayout" name="horizontalLayout_discordEmbeddedToken">
+            <item>
+             <widget class="QLabel" name="discordEmbeddedTokenLabel">
+              <property name="text">
+               <string>Embedded Session &amp;Token (Optional):</string>
+              </property>
+              <property name="buddy">
+               <cstring>discordEmbeddedTokenEdit</cstring>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="discordEmbeddedTokenEdit">
+              <property name="echoMode">
+               <enum>QLineEdit::EchoMode::PasswordEchoOnEdit</enum>
+              </property>
+              <property name="placeholderText">
+               <string>Auto-detected from local Discord client (leave empty)</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
            <layout class="QHBoxLayout" name="horizontalLayout_discordAppId">
             <item>
              <widget class="QLabel" name="discordClientIDLabel">

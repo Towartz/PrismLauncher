@@ -1331,6 +1331,10 @@ if(APPLE)
     endif()
 endif()
 
+if(WIN32)
+    target_link_libraries(Launcher_logic crypt32 bcrypt)
+endif()
+
 add_executable(${Launcher_Name} MACOSX_BUNDLE WIN32 main.cpp ${LAUNCHER_RCS})
 
 if(${Launcher_USE_PCH})

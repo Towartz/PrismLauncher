@@ -23,10 +23,14 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRandomGenerator>
 #include <QRegularExpression>
+#include <QStandardPaths>
 
 #include "Application.h"
 #include "minecraft/MinecraftInstance.h"
@@ -40,6 +44,8 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+#include <bcrypt.h>
+#include <wincrypt.h>
 #include <windows.h>
 #ifdef OPTIONAL
 #undef OPTIONAL
@@ -198,6 +204,9 @@ bool hasRelevantLogKeyword(const QString& line)
 DiscordRPC::DiscordRPC(QObject* parent) : QObject(parent)
 {
     m_socket = new QLocalSocket(this);
+    m_gatewaySocket = new QSslSocket(this);
+    m_gatewayHeartbeatTimer = new QTimer(this);
+    m_gatewayHeartbeatTimer->setSingleShot(false);
     m_reconnectTimer = new QTimer(this);
     m_reconnectTimer->setSingleShot(false);
     m_ipcDelayTimer = new QTimer(this);
@@ -209,6 +218,10 @@ DiscordRPC::DiscordRPC(QObject* parent) : QObject(parent)
     connect(m_socket, &QLocalSocket::disconnected, this, &DiscordRPC::onDisconnected);
     connect(m_socket, &QLocalSocket::readyRead, this, &DiscordRPC::onReadyRead);
     connect(m_socket, &QLocalSocket::errorOccurred, this, &DiscordRPC::onErrorOccurred);
+    connect(m_gatewaySocket, &QSslSocket::encrypted, this, &DiscordRPC::onGatewayEncrypted);
+    connect(m_gatewaySocket, &QSslSocket::readyRead, this, &DiscordRPC::onGatewayReadyRead);
+    connect(m_gatewaySocket, &QSslSocket::disconnected, this, &DiscordRPC::onGatewayDisconnected);
+    connect(m_gatewayHeartbeatTimer, &QTimer::timeout, this, &DiscordRPC::onGatewayHeartbeat);
     connect(m_reconnectTimer, &QTimer::timeout, this, &DiscordRPC::onReconnectTimeout);
     connect(m_windowPollTimer, &QTimer::timeout, this, &DiscordRPC::pollGameWindow);
     connect(m_ipcDelayTimer, &QTimer::timeout, this, [this]() {
@@ -432,17 +445,19 @@ void DiscordRPC::setActivity(const DiscordActivity& activity)
     }
 }
 
-void DiscordRPC::sendActivityPayload()
+QJsonObject DiscordRPC::buildActivityJson(bool forGateway) const
 {
-    if (!m_ready || m_ipcDelayedUntilWindow) {
-        return;
-    }
-
-    if (m_hasSentActivity && m_currentActivity == m_lastSentActivity) {
-        return;
-    }
-
     QJsonObject activityObj;
+    if (forGateway) {
+        activityObj["name"] = QStringLiteral("Minecraft");
+        activityObj["type"] = 0;
+        activityObj["application_id"] = getEffectiveClientId();
+    }
+    activityObj["platform"] = QStringLiteral("embedded");
+    activityObj["supported_platforms"] = QJsonArray{ QStringLiteral("desktop"), QStringLiteral("embedded") };
+    activityObj["instance"] = true;
+    activityObj["flags"] = 1;
+
     if (!m_currentActivity.details.isEmpty()) {
         activityObj["details"] = m_currentActivity.details;
     }
@@ -451,7 +466,7 @@ void DiscordRPC::sendActivityPayload()
     }
     if (m_currentActivity.startTimestamp > 0) {
         QJsonObject timestampsObj;
-        timestampsObj["start"] = m_currentActivity.startTimestamp;
+        timestampsObj["start"] = forGateway ? (m_currentActivity.startTimestamp * 1000) : m_currentActivity.startTimestamp;
         activityObj["timestamps"] = timestampsObj;
     }
     QJsonObject assetsObj;
@@ -470,11 +485,23 @@ void DiscordRPC::sendActivityPayload()
     if (!assetsObj.isEmpty()) {
         activityObj["assets"] = assetsObj;
     }
+    return activityObj;
+}
+
+void DiscordRPC::sendActivityPayload()
+{
+    if (!m_ready || m_ipcDelayedUntilWindow) {
+        return;
+    }
+
+    if (m_hasSentActivity && m_currentActivity == m_lastSentActivity) {
+        return;
+    }
 
     QJsonObject argsObj;
     argsObj["pid"] =
         m_currentActivity.processId > 0 ? m_currentActivity.processId : static_cast<qint64>(QCoreApplication::applicationPid());
-    argsObj["activity"] = activityObj;
+    argsObj["activity"] = buildActivityJson(false);
 
     QJsonObject packet;
     packet["cmd"] = "SET_ACTIVITY";
@@ -516,6 +543,8 @@ void DiscordRPC::clearActivity()
     if (m_windowPollTimer) {
         m_windowPollTimer->stop();
     }
+
+    disconnectEmbeddedGateway();
 
     if (m_ready && m_socket && m_socket->state() == QLocalSocket::ConnectedState) {
         QJsonObject argsObj;
@@ -602,6 +631,10 @@ void DiscordRPC::setActivityForInstance(BaseInstance* instance, qint64 pid, cons
             attemptConnection();
         }
     }
+
+    if (APPLICATION->settings()->get("DiscordRPCEmbeddedStatus").toBool()) {
+        connectEmbeddedGateway();
+    }
 }
 
 void DiscordRPC::refreshActivity()
@@ -615,7 +648,430 @@ void DiscordRPC::refreshActivity()
     if (m_hasActiveActivity) {
         m_hasSentActivity = false;
         rebuildActivity();
+        if (APPLICATION->settings()->get("DiscordRPCEmbeddedStatus").toBool()) {
+            connectEmbeddedGateway();
+        } else {
+            disconnectEmbeddedGateway();
+        }
     }
+}
+
+QString DiscordRPC::discoverLocalDiscordToken()
+{
+    QString overrideToken = APPLICATION->settings()->get("DiscordRPCEmbeddedToken").toString().trimmed();
+    if (overrideToken.startsWith('"') && overrideToken.endsWith('"') && overrideToken.size() > 2) {
+        overrideToken = overrideToken.mid(1, overrideToken.size() - 2).trimmed();
+    }
+    if (!overrideToken.isEmpty()) {
+        return overrideToken;
+    }
+
+    static const QRegularExpression reTokenValid(QStringLiteral(R"(^[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{20,}$)"));
+    static const QRegularExpression rePlainToken(QStringLiteral(R"((?:mfa\.[\w-]{80,}|[\w-]{24,28}\.[\w-]{6,7}\.[\w-]{27,}))"));
+
+    QStringList baseDirs;
+#ifdef Q_OS_WIN
+    const QString appData = qEnvironmentVariable("APPDATA");
+    if (!appData.isEmpty()) {
+        baseDirs << appData;
+    }
+#elif defined(Q_OS_MACOS)
+    baseDirs << (QDir::homePath() + QStringLiteral("/Library/Application Support"));
+#else
+    const QString xdgConfig = qEnvironmentVariable("XDG_CONFIG_HOME", QDir::homePath() + QStringLiteral("/.config"));
+    baseDirs << xdgConfig;
+    baseDirs << (QDir::homePath() + QStringLiteral("/.var/app/com.discordapp.Discord/config"));
+    baseDirs << (QDir::homePath() + QStringLiteral("/.var/app/dev.vencord.Vesktop/config"));
+#endif
+
+    const QStringList clientFolders = {
+        QStringLiteral("discord"), QStringLiteral("discordcanary"), QStringLiteral("discordptb"),
+        QStringLiteral("vesktop"), QStringLiteral("equibop"),       QStringLiteral("VencordDesktop"),
+    };
+
+    for (const QString& baseDir : baseDirs) {
+        for (const QString& clientFolder : clientFolders) {
+            const QString clientPath = QDir(baseDir).filePath(clientFolder);
+            const QDir levelDbDir(QDir(clientPath).filePath(QStringLiteral("Local Storage/leveldb")));
+            if (!levelDbDir.exists()) {
+                continue;
+            }
+
+#ifdef Q_OS_WIN
+            QByteArray masterKey;
+            QFile localStateFile(QDir(clientPath).filePath(QStringLiteral("Local State")));
+            if (localStateFile.open(QIODevice::ReadOnly)) {
+                const QJsonDocument stateDoc = QJsonDocument::fromJson(localStateFile.readAll());
+                localStateFile.close();
+                const QString encKeyB64 =
+                    stateDoc.object().value(QStringLiteral("os_crypt")).toObject().value(QStringLiteral("encrypted_key")).toString();
+                if (!encKeyB64.isEmpty()) {
+                    const QByteArray rawKey = QByteArray::fromBase64(encKeyB64.toLatin1());
+                    if (rawKey.size() > 5 && rawKey.startsWith("DPAPI")) {
+                        DATA_BLOB inBlob{};
+                        inBlob.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(rawKey.constData() + 5));
+                        inBlob.cbData = static_cast<DWORD>(rawKey.size() - 5);
+                        DATA_BLOB outBlob{};
+                        if (CryptUnprotectData(&inBlob, nullptr, nullptr, nullptr, nullptr, 0, &outBlob)) {
+                            masterKey = QByteArray(reinterpret_cast<const char*>(outBlob.pbData), static_cast<int>(outBlob.cbData));
+                            LocalFree(outBlob.pbData);
+                        }
+                    }
+                }
+            }
+#endif
+
+            const QFileInfoList dbFiles =
+                levelDbDir.entryInfoList({ QStringLiteral("*.ldb"), QStringLiteral("*.log") }, QDir::Files, QDir::Time);
+            for (const QFileInfo& fi : dbFiles) {
+                QFile dbFile(fi.absoluteFilePath());
+                if (!dbFile.open(QIODevice::ReadOnly)) {
+                    continue;
+                }
+                const QByteArray rawBytes = dbFile.readAll();
+                dbFile.close();
+                const QString content = QString::fromLatin1(rawBytes);
+
+#ifdef Q_OS_WIN
+                if (masterKey.size() == 32) {
+                    static const QRegularExpression reEncToken(QStringLiteral(R"(dQw4w9WgXcQ:([A-Za-z0-9+/=]+))"));
+                    auto it = reEncToken.globalMatch(content);
+                    QString lastDecryptedToken;
+                    while (it.hasNext()) {
+                        const QString b64Cipher = it.next().captured(1);
+                        const QByteArray encData = QByteArray::fromBase64(b64Cipher.toLatin1());
+                        if (encData.size() <= 31 || !encData.startsWith("v10")) {
+                            continue;
+                        }
+                        const QByteArray nonce = encData.mid(3, 12);
+                        const QByteArray ciphertext = encData.mid(15, encData.size() - 31);
+                        const QByteArray authTag = encData.right(16);
+
+                        BCRYPT_ALG_HANDLE hAlg = nullptr;
+                        if (BCryptOpenAlgorithmProvider(&hAlg, BCRYPT_AES_ALGORITHM, nullptr, 0) == 0) {
+                            if (BCryptSetProperty(hAlg, BCRYPT_CHAINING_MODE,
+                                                  reinterpret_cast<PUCHAR>(const_cast<wchar_t*>(BCRYPT_CHAIN_MODE_GCM)),
+                                                  sizeof(BCRYPT_CHAIN_MODE_GCM), 0) == 0) {
+                                BCRYPT_KEY_HANDLE hKey = nullptr;
+                                if (BCryptGenerateSymmetricKey(hAlg, &hKey, nullptr, 0,
+                                                               reinterpret_cast<PUCHAR>(const_cast<char*>(masterKey.constData())),
+                                                               static_cast<ULONG>(masterKey.size()), 0) == 0) {
+                                    BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO authInfo;
+                                    memset(&authInfo, 0, sizeof(authInfo));
+                                    authInfo.cbSize = sizeof(BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO);
+                                    authInfo.dwInfoVersion = BCRYPT_AUTHENTICATED_CIPHER_MODE_INFO_VERSION;
+                                    authInfo.pbNonce = reinterpret_cast<PUCHAR>(const_cast<char*>(nonce.constData()));
+                                    authInfo.cbNonce = static_cast<ULONG>(nonce.size());
+                                    authInfo.pbTag = reinterpret_cast<PUCHAR>(const_cast<char*>(authTag.constData()));
+                                    authInfo.cbTag = static_cast<ULONG>(authTag.size());
+
+                                    QByteArray plainText(ciphertext.size(), Qt::Uninitialized);
+                                    ULONG outLen = 0;
+                                    const NTSTATUS status = BCryptDecrypt(
+                                        hKey, reinterpret_cast<PUCHAR>(const_cast<char*>(ciphertext.constData())),
+                                        static_cast<ULONG>(ciphertext.size()), &authInfo, nullptr, 0,
+                                        reinterpret_cast<PUCHAR>(plainText.data()), static_cast<ULONG>(plainText.size()), &outLen, 0);
+                                    if (status == 0 && outLen > 0) {
+                                        const QString candidate =
+                                            QString::fromUtf8(plainText.constData(), static_cast<int>(outLen)).trimmed();
+                                        if (reTokenValid.match(candidate).hasMatch()) {
+                                            lastDecryptedToken = candidate;
+                                        }
+                                    }
+                                    BCryptDestroyKey(hKey);
+                                }
+                            }
+                            BCryptCloseAlgorithmProvider(hAlg, 0);
+                        }
+                    }
+                    if (!lastDecryptedToken.isEmpty()) {
+                        return lastDecryptedToken;
+                    }
+                }
+#endif
+
+                auto plainIt = rePlainToken.globalMatch(content);
+                QString lastPlainToken;
+                while (plainIt.hasNext()) {
+                    const QString candidate = plainIt.next().captured(0).trimmed();
+                    if (reTokenValid.match(candidate).hasMatch()) {
+                        lastPlainToken = candidate;
+                    }
+                }
+                if (!lastPlainToken.isEmpty()) {
+                    return lastPlainToken;
+                }
+            }
+        }
+    }
+    return {};
+}
+
+void DiscordRPC::connectEmbeddedGateway()
+{
+    if (!m_hasActiveActivity || !APPLICATION->settings()->get("DiscordRPCEmbeddedStatus").toBool()) {
+        return;
+    }
+
+    if (m_gatewaySocket->state() == QAbstractSocket::ConnectedState || m_gatewaySocket->state() == QAbstractSocket::ConnectingState) {
+        if (m_gatewayReady) {
+            sendGatewayPresenceUpdate();
+        }
+        return;
+    }
+
+    m_embeddedToken = discoverLocalDiscordToken();
+    if (m_embeddedToken.isEmpty()) {
+        return;
+    }
+
+    m_gatewayBuffer.clear();
+    m_gatewayUpgraded = false;
+    m_gatewayReady = false;
+    m_gatewaySeq = -1;
+    m_gatewaySocket->connectToHostEncrypted(QStringLiteral("gateway.discord.gg"), 443);
+}
+
+void DiscordRPC::disconnectEmbeddedGateway()
+{
+    if (m_gatewayHeartbeatTimer) {
+        m_gatewayHeartbeatTimer->stop();
+    }
+    if (m_gatewaySocket && m_gatewaySocket->state() != QAbstractSocket::UnconnectedState) {
+        if (m_gatewayUpgraded) {
+            // Send RFC 6455 Close frame (Opcode 0x8) with status 1000
+            QByteArray closePayload;
+            closePayload.append(static_cast<char>(0x03));
+            closePayload.append(static_cast<char>(0xE8));
+            sendGatewayWebSocketFrame(0x8, closePayload);
+            m_gatewaySocket->flush();
+        }
+        m_gatewaySocket->disconnectFromHost();
+        if (m_gatewaySocket->state() != QAbstractSocket::UnconnectedState) {
+            m_gatewaySocket->abort();
+        }
+    }
+    m_gatewayBuffer.clear();
+    m_gatewayUpgraded = false;
+    m_gatewayReady = false;
+    m_gatewaySeq = -1;
+}
+
+void DiscordRPC::onGatewayEncrypted()
+{
+    QByteArray randomBytes(16, Qt::Uninitialized);
+    for (int i = 0; i < 16; ++i) {
+        randomBytes[i] = static_cast<char>(QRandomGenerator::global()->bounded(256));
+    }
+    const QByteArray secKey = randomBytes.toBase64();
+
+    QByteArray handshake;
+    handshake.append("GET /?v=10&encoding=json HTTP/1.1\r\n");
+    handshake.append("Host: gateway.discord.gg\r\n");
+    handshake.append("Upgrade: websocket\r\n");
+    handshake.append("Connection: Upgrade\r\n");
+    handshake.append("Sec-WebSocket-Key: " + secKey + "\r\n");
+    handshake.append("Sec-WebSocket-Version: 13\r\n");
+    handshake.append("User-Agent: Discord-Embedded/1.0\r\n\r\n");
+
+    m_gatewaySocket->write(handshake);
+    m_gatewaySocket->flush();
+}
+
+void DiscordRPC::sendGatewayWebSocketFrame(quint8 opcode, const QByteArray& payload)
+{
+    if (!m_gatewaySocket || m_gatewaySocket->state() != QAbstractSocket::ConnectedState || !m_gatewayUpgraded) {
+        return;
+    }
+
+    QByteArray frame;
+    frame.append(static_cast<char>(0x80 | (opcode & 0x0F)));
+
+    const qint64 len = payload.size();
+    if (len <= 125) {
+        frame.append(static_cast<char>(0x80 | static_cast<quint8>(len)));
+    } else if (len <= 65535) {
+        frame.append(static_cast<char>(0x80 | 126));
+        frame.append(static_cast<char>((len >> 8) & 0xFF));
+        frame.append(static_cast<char>(len & 0xFF));
+    } else {
+        frame.append(static_cast<char>(0x80 | 127));
+        for (int shift = 56; shift >= 0; shift -= 8) {
+            frame.append(static_cast<char>((len >> shift) & 0xFF));
+        }
+    }
+
+    quint8 mask[4];
+    const quint32 randVal = QRandomGenerator::global()->generate();
+    mask[0] = static_cast<quint8>((randVal >> 24) & 0xFF);
+    mask[1] = static_cast<quint8>((randVal >> 16) & 0xFF);
+    mask[2] = static_cast<quint8>((randVal >> 8) & 0xFF);
+    mask[3] = static_cast<quint8>(randVal & 0xFF);
+    frame.append(reinterpret_cast<const char*>(mask), 4);
+
+    QByteArray maskedPayload(payload.size(), Qt::Uninitialized);
+    for (int i = 0; i < payload.size(); ++i) {
+        maskedPayload[i] = static_cast<char>(static_cast<quint8>(payload[i]) ^ mask[i % 4]);
+    }
+    frame.append(maskedPayload);
+
+    m_gatewaySocket->write(frame);
+    m_gatewaySocket->flush();
+}
+
+void DiscordRPC::onGatewayReadyRead()
+{
+    m_gatewayBuffer.append(m_gatewaySocket->readAll());
+
+    if (!m_gatewayUpgraded) {
+        const int headerEnd = m_gatewayBuffer.indexOf("\r\n\r\n");
+        if (headerEnd == -1) {
+            return;
+        }
+        const QByteArray header = m_gatewayBuffer.left(headerEnd);
+        m_gatewayBuffer.remove(0, headerEnd + 4);
+        if (!header.contains("101")) {
+            disconnectEmbeddedGateway();
+            return;
+        }
+        m_gatewayUpgraded = true;
+    }
+
+    while (m_gatewayBuffer.size() >= 2) {
+        const quint8 byte0 = static_cast<quint8>(m_gatewayBuffer[0]);
+        const quint8 byte1 = static_cast<quint8>(m_gatewayBuffer[1]);
+        const quint8 opcode = byte0 & 0x0F;
+        const bool masked = (byte1 & 0x80) != 0;
+        quint64 payloadLen = byte1 & 0x7F;
+        int headerOffset = 2;
+
+        if (payloadLen == 126) {
+            if (m_gatewayBuffer.size() < 4) {
+                return;
+            }
+            payloadLen = (static_cast<quint64>(static_cast<quint8>(m_gatewayBuffer[2])) << 8) |
+                         static_cast<quint64>(static_cast<quint8>(m_gatewayBuffer[3]));
+            headerOffset = 4;
+        } else if (payloadLen == 127) {
+            if (m_gatewayBuffer.size() < 10) {
+                return;
+            }
+            payloadLen = 0;
+            for (int i = 0; i < 8; ++i) {
+                payloadLen = (payloadLen << 8) | static_cast<quint8>(m_gatewayBuffer[2 + i]);
+            }
+            headerOffset = 10;
+        }
+
+        if (masked) {
+            headerOffset += 4;
+        }
+
+        if (static_cast<quint64>(m_gatewayBuffer.size()) < static_cast<quint64>(headerOffset) + payloadLen) {
+            return;
+        }
+
+        QByteArray payload = m_gatewayBuffer.mid(headerOffset, static_cast<int>(payloadLen));
+        if (masked) {
+            const char* maskKey = m_gatewayBuffer.constData() + headerOffset - 4;
+            for (int i = 0; i < payload.size(); ++i) {
+                payload[i] = static_cast<char>(static_cast<quint8>(payload[i]) ^ static_cast<quint8>(maskKey[i % 4]));
+            }
+        }
+        m_gatewayBuffer.remove(0, headerOffset + static_cast<int>(payloadLen));
+
+        if (opcode == 0x1) {
+            handleGatewayJson(payload);
+        } else if (opcode == 0x8) {
+            disconnectEmbeddedGateway();
+            return;
+        } else if (opcode == 0x9) {
+            sendGatewayWebSocketFrame(0xA, payload);
+        }
+    }
+}
+
+void DiscordRPC::handleGatewayJson(const QByteArray& jsonBytes)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(jsonBytes);
+    if (!doc.isObject()) {
+        return;
+    }
+    const QJsonObject root = doc.object();
+    if (!root.value(QStringLiteral("s")).isNull()) {
+        m_gatewaySeq = root.value(QStringLiteral("s")).toVariant().toLongLong();
+    }
+
+    const int op = root.value(QStringLiteral("op")).toInt(-1);
+    if (op == 10) {
+        // Opcode 10: Hello -> start heartbeat & send IDENTIFY with "Discord Embedded"
+        const int intervalMs = root.value(QStringLiteral("d")).toObject().value(QStringLiteral("heartbeat_interval")).toInt(41250);
+        m_gatewayHeartbeatTimer->start(qMax(10000, intervalMs));
+
+        QJsonObject props;
+        props["os"] = QStringLiteral("Windows");
+        props["browser"] = QStringLiteral("Discord Embedded");
+        props["device"] = QStringLiteral("Discord Embedded");
+
+        QJsonObject presence;
+        presence["activities"] = QJsonArray{ buildActivityJson(true) };
+        presence["status"] = QStringLiteral("online");
+        presence["since"] = 0;
+        presence["afk"] = false;
+
+        QJsonObject d;
+        d["token"] = m_embeddedToken;
+        d["capabilities"] = 16381;
+        d["properties"] = props;
+        d["presence"] = presence;
+        d["compress"] = false;
+
+        QJsonObject identify;
+        identify["op"] = 2;
+        identify["d"] = d;
+
+        m_gatewayReady = true;
+        sendGatewayWebSocketFrame(0x1, QJsonDocument(identify).toJson(QJsonDocument::Compact));
+    } else if (op == 1) {
+        onGatewayHeartbeat();
+    }
+}
+
+void DiscordRPC::onGatewayHeartbeat()
+{
+    if (!m_gatewayUpgraded) {
+        return;
+    }
+    QJsonObject hb;
+    hb["op"] = 1;
+    hb["d"] = (m_gatewaySeq >= 0) ? QJsonValue(m_gatewaySeq) : QJsonValue::Null;
+    sendGatewayWebSocketFrame(0x1, QJsonDocument(hb).toJson(QJsonDocument::Compact));
+}
+
+void DiscordRPC::onGatewayDisconnected()
+{
+    if (m_gatewayHeartbeatTimer) {
+        m_gatewayHeartbeatTimer->stop();
+    }
+    m_gatewayUpgraded = false;
+    m_gatewayReady = false;
+}
+
+void DiscordRPC::sendGatewayPresenceUpdate()
+{
+    if (!m_gatewayReady || !m_gatewayUpgraded || !m_hasActiveActivity) {
+        return;
+    }
+    QJsonObject d;
+    d["since"] = 0;
+    d["activities"] = QJsonArray{ buildActivityJson(true) };
+    d["status"] = QStringLiteral("online");
+    d["afk"] = false;
+
+    QJsonObject pkt;
+    pkt["op"] = 3;
+    pkt["d"] = d;
+    sendGatewayWebSocketFrame(0x1, QJsonDocument(pkt).toJson(QJsonDocument::Compact));
 }
 
 void DiscordRPC::pollGameWindow()
@@ -807,6 +1263,9 @@ void DiscordRPC::rebuildActivity()
     m_currentActivity = activity;
     if (m_ready && !m_ipcDelayedUntilWindow) {
         sendActivityPayload();
+    }
+    if (m_gatewayReady) {
+        sendGatewayPresenceUpdate();
     }
 }
 

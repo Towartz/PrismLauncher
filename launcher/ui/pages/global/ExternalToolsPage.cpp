@@ -91,6 +91,9 @@ void ExternalToolsPage::loadSettings()
     m_ui->discordShowGameStateCheck->setChecked(s->get("DiscordRPCShowGameState").toBool());
     m_ui->discordShowServerAddressCheck->setChecked(s->get("DiscordRPCShowServerAddress").toBool());
     m_ui->discordProcessDetectionCheck->setChecked(s->get("DiscordRPCProcessDetection").toBool());
+    m_ui->discordEmbeddedStatusCheck->setChecked(s->get("DiscordRPCEmbeddedStatus").toBool());
+    m_ui->discordEmbeddedTokenEdit->setClearButtonEnabled(true);
+    m_ui->discordEmbeddedTokenEdit->setText(s->get("DiscordRPCEmbeddedToken").toString());
     m_ui->discordClientIDEdit->setText(s->get("DiscordRPCClientID").toString());
 
     // World Tools
@@ -156,6 +159,8 @@ void ExternalToolsPage::applySettings()
     s->set("DiscordRPCShowGameState", m_ui->discordShowGameStateCheck->isChecked());
     s->set("DiscordRPCShowServerAddress", m_ui->discordShowServerAddressCheck->isChecked());
     s->set("DiscordRPCProcessDetection", m_ui->discordProcessDetectionCheck->isChecked());
+    s->set("DiscordRPCEmbeddedStatus", m_ui->discordEmbeddedStatusCheck->isChecked());
+    s->set("DiscordRPCEmbeddedToken", m_ui->discordEmbeddedTokenEdit->text().trimmed());
     QString clientID = m_ui->discordClientIDEdit->text().trimmed();
     if (clientID.isEmpty()) {
         clientID = QString::fromLatin1(DiscordRPC::DEFAULT_APPLICATION_ID);
