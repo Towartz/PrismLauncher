@@ -40,6 +40,8 @@ class QmlThemeBridge : public QObject {
    public:
     explicit QmlThemeBridge(QObject* parent = nullptr);
 
+    auto eventFilter(QObject* watched, QEvent* event) -> bool override;
+
     QColor windowBackground() const;
     QColor cardBackground() const;
     QColor cardHover() const;

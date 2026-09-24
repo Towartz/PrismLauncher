@@ -17,11 +17,31 @@
  */
 
 #include "QmlThemeBridge.h"
+#include <QEvent>
 #include <QGuiApplication>
+#include "Application.h"
+#include "settings/Setting.h"
+#include "settings/SettingsObject.h"
 
 QmlThemeBridge::QmlThemeBridge(QObject* parent) : QObject(parent)
 {
-    connect(qApp, &QGuiApplication::paletteChanged, this, &QmlThemeBridge::updateTheme);
+    if (qApp) {
+        qApp->installEventFilter(this);
+    }
+
+    if (APPLICATION_DYN && APPLICATION->settings()) {
+        if (auto setting = APPLICATION->settings()->getSetting("ApplicationTheme")) {
+            connect(setting.get(), &Setting::SettingChanged, this, &QmlThemeBridge::updateTheme);
+        }
+    }
+}
+
+auto QmlThemeBridge::eventFilter(QObject* watched, QEvent* event) -> bool
+{
+    if (event && (event->type() == QEvent::ApplicationPaletteChange || event->type() == QEvent::PaletteChange)) {
+        updateTheme();
+    }
+    return QObject::eventFilter(watched, event);
 }
 
 void QmlThemeBridge::updateTheme()
