@@ -17,8 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Shapes
 
 Item {
     id: root
@@ -27,7 +25,7 @@ Item {
 
     property bool isGridMode: true
     property bool isSelected: false
-    property var theme: (typeof theme !== "undefined") ? theme : null
+    property var themeBridge: null
 
     signal clicked()
     signal doubleClicked()
@@ -41,8 +39,8 @@ Item {
         anchors.fill: parent
         anchors.margins: 4
         radius: isGridMode ? 10 : 8
-        color: isSelected ? ((theme && theme.cardSelected) ? theme.cardSelected : "#313244") : (cardArea.containsMouse ? ((theme && theme.cardHover) ? theme.cardHover : "#252636") : ((theme && theme.cardBackground) ? theme.cardBackground : "#181825"))
-        border.color: isSelected ? ((theme && theme.accentColor) ? theme.accentColor : "#89B4FA") : (cardArea.containsMouse ? ((theme && theme.accentColor) ? theme.accentColor : "#89B4FA") : ((theme && theme.borderColor) ? theme.borderColor : "#313244"))
+        color: isSelected ? ((themeBridge && themeBridge.cardSelected) ? themeBridge.cardSelected : "#313244") : (cardArea.containsMouse ? ((themeBridge && themeBridge.cardHover) ? themeBridge.cardHover : "#252636") : ((themeBridge && themeBridge.cardBackground) ? themeBridge.cardBackground : "#181825"))
+        border.color: isSelected ? ((themeBridge && themeBridge.accentColor) ? themeBridge.accentColor : "#89B4FA") : (cardArea.containsMouse ? ((themeBridge && themeBridge.accentColor) ? themeBridge.accentColor : "#89B4FA") : ((themeBridge && themeBridge.borderColor) ? themeBridge.borderColor : "#313244"))
         border.width: isSelected ? 2 : 1
 
         Behavior on color {
@@ -52,315 +50,209 @@ Item {
             ColorAnimation { duration: 120 }
         }
 
-        MouseArea {
-            id: cardArea
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.clicked()
-            onDoubleClicked: root.doubleClicked()
-        }
-
-        // Layout for Card Grid Mode
-        Item {
+        // Grid Layout
+        Column {
+            visible: root.isGridMode
             anchors.fill: parent
             anchors.margins: 10
-            visible: root.isGridMode
+            spacing: 6
 
-            // Icon with monogram and vector cube fallback
-            Rectangle {
-                id: iconRect
-                width: 44
-                height: 44
-                radius: 8
-                color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
-                clip: true
+            Row {
+                width: parent.width
+                spacing: 10
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: iconImg.status !== Image.Ready && text.length > 0
-                    text: {
-                        var t = (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "");
-                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "";
+                // Icon container
+                Rectangle {
+                    width: 44
+                    height: 44
+                    radius: 8
+                    color: (themeBridge && themeBridge.windowBackground) ? themeBridge.windowBackground : "#11111B"
+                    clip: true
+
+                    Image {
+                        id: gridIcon
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: (typeof iconUrl !== "undefined" && iconUrl !== "") ? iconUrl : ""
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
+                        visible: status === Image.Ready
                     }
-                    font.bold: true
-                    font.pixelSize: 18
-                    color: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                }
 
-                // Vector cube outline if no text is available
-                Shape {
-                    anchors.centerIn: parent
-                    width: 20
-                    height: 20
-                    layer.enabled: true
-                    layer.samples: 4
-                    visible: iconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
-
-                    ShapePath {
-                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                        strokeWidth: 1.8
-                        fillColor: "transparent"
-                        capStyle: ShapePath.RoundCap
-                        joinStyle: ShapePath.RoundJoin
-                        startX: 3; startY: 6
-                        PathLine { x: 10; y: 2 }
-                        PathLine { x: 17; y: 6 }
-                        PathLine { x: 17; y: 14 }
-                        PathLine { x: 10; y: 18 }
-                        PathLine { x: 3; y: 14 }
-                        PathLine { x: 3; y: 6 }
-                    }
-                    ShapePath {
-                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                        strokeWidth: 1.8
-                        fillColor: "transparent"
-                        capStyle: ShapePath.RoundCap
-                        startX: 10; startY: 2
-                        PathLine { x: 10; y: 18 }
+                    // Pure SVG Cube Fallback Icon
+                    Image {
+                        anchors.centerIn: parent
+                        width: 24
+                        height: 24
+                        sourceSize: Qt.size(24, 24)
+                        smooth: true
+                        visible: gridIcon.status !== Image.Ready
+                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2389B4FA' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg>"
                     }
                 }
 
-                Image {
-                    id: iconImg
-                    anchors.fill: parent
-                    source: (typeof model.iconUrl !== "undefined" && model.iconUrl !== "") ? model.iconUrl : ""
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                    cache: true
+                Column {
+                    width: parent.width - 54
+                    spacing: 3
+                    anchors.verticalCenter: parent.verticalCenter
+
+                    Row {
+                        width: parent.width
+                        spacing: 6
+
+                        Text {
+                            text: (typeof title !== "undefined" && title !== "") ? title : ((typeof display !== "undefined" && display !== "") ? display : "Resource")
+                            color: (themeBridge && themeBridge.textPrimary) ? themeBridge.textPrimary : "#CDD6F4"
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
+                            width: parent.width - (gridStatusRing.visible ? 26 : 0)
+                        }
+
+                        DownloadProgressRing {
+                            id: gridStatusRing
+                            width: 18
+                            height: 18
+                            anchors.verticalCenter: parent.verticalCenter
+                            isInstalled: (typeof installed !== "undefined" && installed) || (typeof checkState !== "undefined" && checkState === 2)
+                            ringColor: (themeBridge && themeBridge.successColor) ? themeBridge.successColor : "#A6E3A1"
+                            visible: isInstalled
+                        }
+                    }
+
+                    Text {
+                        width: parent.width
+                        visible: (typeof author !== "undefined" && author !== "")
+                        text: (typeof author !== "undefined" && author !== "") ? ("by " + author) : ""
+                        color: (themeBridge && themeBridge.textSecondary) ? themeBridge.textSecondary : "#A6ADC8"
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
                 }
-            }
-
-            // Title & Author
-            Column {
-                anchors.left: iconRect.right
-                anchors.right: progressRing.left
-                anchors.top: iconRect.top
-                anchors.leftMargin: 10
-                anchors.rightMargin: 6
-                spacing: 2
-
-                Text {
-                    width: parent.width
-                    text: (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "")
-                    color: (theme && theme.textPrimary) ? theme.textPrimary : "#CAD3F5"
-                    font.bold: true
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    width: parent.width
-                    text: (typeof model.author !== "undefined" && model.author !== "") ? ("by " + model.author) : ""
-                    color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
-                    visible: text.length > 0
-                }
-            }
-
-            // Top-right progress / checkmark ring
-            DownloadProgressRing {
-                id: progressRing
-                anchors.top: parent.top
-                anchors.right: parent.right
-                width: 22
-                height: 22
-                isInstalled: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
-                ringColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                visible: isInstalled
             }
 
             // Description
             Text {
-                id: descText
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: iconRect.bottom
-                anchors.bottom: metaRow.top
-                anchors.topMargin: 8
-                anchors.bottomMargin: 4
-                text: (typeof model.description !== "undefined") ? model.description : ""
-                color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
+                width: parent.width
+                height: 34
+                text: (typeof description !== "undefined") ? description : ""
+                color: (themeBridge && themeBridge.textSecondary) ? themeBridge.textSecondary : "#A6ADC8"
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
-                maximumLineCount: 2
                 elide: Text.ElideRight
+                maximumLineCount: 2
             }
 
-            // Bottom Badges / Tags row
+            // Provider & Side Pills
             Row {
-                id: metaRow
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
-                spacing: 6
+                width: parent.width
+                spacing: 4
+                clip: true
 
-                // Provider badge
                 Rectangle {
-                    radius: 4
+                    visible: (typeof provider !== "undefined" && provider !== "")
                     height: 18
-                    width: providerLabel.width + 10
-                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
-                    visible: (typeof model.provider !== "undefined" && model.provider !== "")
+                    width: providerTagText.implicitWidth + 10
+                    radius: 4
+                    color: (themeBridge && themeBridge.badgeBackground) ? themeBridge.badgeBackground : "#2A2A3C"
+                    border.color: (themeBridge && themeBridge.borderColor) ? themeBridge.borderColor : "#313244"
+                    border.width: 1
 
                     Text {
-                        id: providerLabel
+                        id: providerTagText
                         anchors.centerIn: parent
-                        text: (typeof model.provider !== "undefined") ? model.provider : ""
-                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
-                        font.pixelSize: 10
-                        font.bold: true
-                    }
-                }
-
-                // Side badge
-                Rectangle {
-                    radius: 4
-                    height: 18
-                    width: sideLabel.width + 10
-                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
-                    visible: (typeof model.side !== "undefined" && model.side !== "")
-
-                    Text {
-                        id: sideLabel
-                        anchors.centerIn: parent
-                        text: (typeof model.side !== "undefined") ? model.side : ""
-                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
+                        text: (typeof provider !== "undefined") ? provider : ""
+                        color: (themeBridge && themeBridge.accentColor) ? themeBridge.accentColor : "#89B4FA"
                         font.pixelSize: 10
                     }
                 }
 
-                // Installed / Selected badge with vector checkmark
                 Rectangle {
-                    radius: 4
+                    visible: (typeof side !== "undefined" && side !== "")
                     height: 18
-                    width: badgeRow.width + 12
-                    color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? ((theme && theme.accentColor) ? theme.accentColor : "#3B82F6") : ((theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C")
-                    visible: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
+                    width: sideTagText.implicitWidth + 10
+                    radius: 4
+                    color: (themeBridge && themeBridge.badgeBackground) ? themeBridge.badgeBackground : "#2A2A3C"
+                    border.color: (themeBridge && themeBridge.borderColor) ? themeBridge.borderColor : "#313244"
+                    border.width: 1
 
-                    Row {
-                        id: badgeRow
+                    Text {
+                        id: sideTagText
                         anchors.centerIn: parent
-                        spacing: 4
-
-                        Shape {
-                            width: 8
-                            height: 8
-                            anchors.verticalCenter: parent.verticalCenter
-                            layer.enabled: true
-                            layer.samples: 4
-                            visible: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
-
-                            ShapePath {
-                                strokeColor: "#FFFFFF"
-                                strokeWidth: 1.8
-                                fillColor: "transparent"
-                                capStyle: ShapePath.RoundCap
-                                joinStyle: ShapePath.RoundJoin
-                                startX: 1
-                                startY: 4
-                                PathLine { x: 3; y: 6.5 }
-                                PathLine { x: 7; y: 1.5 }
-                            }
-                        }
-
-                        Text {
-                            id: statusLabel
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "Selected" : "Installed"
-                            color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "#FFFFFF" : ((theme && theme.badgeText) ? theme.badgeText : "#CAD3F5")
-                            font.pixelSize: 10
-                            font.bold: true
-                        }
+                        text: (typeof side !== "undefined") ? side : ""
+                        color: (themeBridge && themeBridge.badgeText) ? themeBridge.badgeText : "#CAD3F5"
+                        font.pixelSize: 10
                     }
                 }
             }
         }
 
-        // Layout for Compact List Mode
+        // Compact List Layout
         Item {
+            visible: !root.isGridMode
             anchors.fill: parent
             anchors.margins: 6
-            visible: !root.isGridMode
 
-            Rectangle {
-                id: listIconRect
-                width: 36
-                height: 36
-                anchors.verticalCenter: parent.verticalCenter
-                radius: 6
-                color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
-                clip: true
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: listIconImg.status !== Image.Ready && text.length > 0
-                    text: {
-                        var t = (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "");
-                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "";
-                    }
-                    font.bold: true
-                    font.pixelSize: 14
-                    color: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                }
-
-                Shape {
-                    anchors.centerIn: parent
-                    width: 16
-                    height: 16
-                    layer.enabled: true
-                    layer.samples: 4
-                    visible: listIconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
-
-                    ShapePath {
-                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
-                        strokeWidth: 1.5
-                        fillColor: "transparent"
-                        capStyle: ShapePath.RoundCap
-                        joinStyle: ShapePath.RoundJoin
-                        startX: 2.5; startY: 5
-                        PathLine { x: 8; y: 1.5 }
-                        PathLine { x: 13.5; y: 5 }
-                        PathLine { x: 13.5; y: 11 }
-                        PathLine { x: 8; y: 14.5 }
-                        PathLine { x: 2.5; y: 11 }
-                        PathLine { x: 2.5; y: 5 }
-                    }
-                }
-
-                Image {
-                    id: listIconImg
-                    anchors.fill: parent
-                    source: (typeof model.iconUrl !== "undefined" && model.iconUrl !== "") ? model.iconUrl : ""
-                    fillMode: Image.PreserveAspectFit
-                    asynchronous: true
-                }
-            }
-
-            Column {
-                anchors.left: listIconRect.right
+            Row {
+                anchors.left: parent.left
                 anchors.right: listBadgeRow.left
+                anchors.rightMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 2
+                spacing: 10
 
-                Text {
-                    width: parent.width
-                    text: (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "")
-                    color: (theme && theme.textPrimary) ? theme.textPrimary : "#CAD3F5"
-                    font.bold: true
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
+                Rectangle {
+                    width: 38
+                    height: 38
+                    radius: 6
+                    color: (themeBridge && themeBridge.windowBackground) ? themeBridge.windowBackground : "#11111B"
+                    anchors.verticalCenter: parent.verticalCenter
+                    clip: true
+
+                    Image {
+                        id: listIcon
+                        anchors.fill: parent
+                        anchors.margins: 2
+                        source: (typeof iconUrl !== "undefined" && iconUrl !== "") ? iconUrl : ""
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: true
+                        visible: status === Image.Ready
+                    }
+
+                    // Pure SVG Cube Fallback Icon
+                    Image {
+                        anchors.centerIn: parent
+                        width: 22
+                        height: 22
+                        sourceSize: Qt.size(22, 22)
+                        smooth: true
+                        visible: listIcon.status !== Image.Ready
+                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%2389B4FA' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'><path d='M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z'/><polyline points='3.27 6.96 12 12.01 20.73 6.96'/><line x1='12' y1='22.08' x2='12' y2='12'/></svg>"
+                    }
                 }
 
-                Text {
-                    width: parent.width
-                    text: (typeof model.description !== "undefined") ? model.description : ""
-                    color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
+                Column {
+                    width: parent.width - 48
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+
+                    Text {
+                        width: parent.width
+                        text: (typeof title !== "undefined" && title !== "") ? title : ((typeof display !== "undefined" && display !== "") ? display : "Resource")
+                        color: (themeBridge && themeBridge.textPrimary) ? themeBridge.textPrimary : "#CDD6F4"
+                        font.pixelSize: 13
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: (typeof description !== "undefined") ? description : ""
+                        color: (themeBridge && themeBridge.textSecondary) ? themeBridge.textSecondary : "#A6ADC8"
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
                 }
             }
 
@@ -373,15 +265,15 @@ Item {
                 Rectangle {
                     radius: 4
                     height: 18
-                    width: listProviderLabel.width + 10
-                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
-                    visible: (typeof model.provider !== "undefined" && model.provider !== "")
+                    width: listProviderLabel.implicitWidth + 10
+                    color: (themeBridge && themeBridge.badgeBackground) ? themeBridge.badgeBackground : "#2A2A3C"
+                    visible: (typeof provider !== "undefined" && provider !== "")
 
                     Text {
                         id: listProviderLabel
                         anchors.centerIn: parent
-                        text: (typeof model.provider !== "undefined") ? model.provider : ""
-                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
+                        text: (typeof provider !== "undefined") ? provider : ""
+                        color: (themeBridge && themeBridge.badgeText) ? themeBridge.badgeText : "#CAD3F5"
                         font.pixelSize: 10
                     }
                 }
@@ -390,11 +282,22 @@ Item {
                     width: 20
                     height: 20
                     anchors.verticalCenter: parent.verticalCenter
-                    isInstalled: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
-                    ringColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
+                    isInstalled: (typeof installed !== "undefined" && installed) || (typeof checkState !== "undefined" && checkState === 2)
+                    ringColor: (themeBridge && themeBridge.successColor) ? themeBridge.successColor : "#A6E3A1"
                     visible: isInstalled
                 }
             }
+        }
+
+        MouseArea {
+            id: cardArea
+            anchors.fill: parent
+            hoverEnabled: true
+            acceptedButtons: Qt.LeftButton
+            onClicked: root.clicked()
+            onDoubleClicked: root.doubleClicked()
+            onEntered: root.scale = 1.015
+            onExited: root.scale = 1.0
         }
     }
 }

@@ -17,12 +17,11 @@
  */
 
 import QtQuick
-import QtQuick.Shapes
 
 Item {
     id: root
-    width: 28
-    height: 28
+    width: 24
+    height: 24
 
     property real progress: 0.0 // 0.0 to 1.0
     property bool isDownloading: false
@@ -34,79 +33,20 @@ Item {
         NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
     }
 
-    // Outer track ring
-    Shape {
-        anchors.fill: parent
-        visible: root.isDownloading
-        layer.enabled: true
-        layer.samples: 4
-
-        ShapePath {
-            strokeColor: root.trackColor
-            strokeWidth: 3
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-
-            PathAngleArc {
-                centerX: root.width / 2
-                centerY: root.height / 2
-                radiusX: (root.width - 4) / 2
-                radiusY: (root.height - 4) / 2
-                startAngle: -90
-                sweepAngle: 360
-            }
-        }
-    }
-
-    // Animated progress arc
-    Shape {
-        anchors.fill: parent
-        visible: root.isDownloading
-        layer.enabled: true
-        layer.samples: 4
-
-        ShapePath {
-            strokeColor: root.ringColor
-            strokeWidth: 3
-            fillColor: "transparent"
-            capStyle: ShapePath.RoundCap
-
-            PathAngleArc {
-                centerX: root.width / 2
-                centerY: root.height / 2
-                radiusX: (root.width - 4) / 2
-                radiusY: (root.height - 4) / 2
-                startAngle: -90
-                sweepAngle: Math.max(5, root.progress * 360)
-            }
-        }
-    }
-
-    // Installed vector checkmark indicator
+    // Installed / Selected SVG checkmark indicator
     Rectangle {
         anchors.fill: parent
         radius: width / 2
         color: root.ringColor
         visible: root.isInstalled && !root.isDownloading
 
-        Shape {
+        Image {
             anchors.centerIn: parent
             width: 14
             height: 14
-            layer.enabled: true
-            layer.samples: 4
-
-            ShapePath {
-                strokeColor: "#FFFFFF"
-                strokeWidth: 2.2
-                fillColor: "transparent"
-                capStyle: ShapePath.RoundCap
-                joinStyle: ShapePath.RoundJoin
-                startX: 2.5
-                startY: 7
-                PathLine { x: 5.5; y: 10.5 }
-                PathLine { x: 11.5; y: 3.5 }
-            }
+            sourceSize: Qt.size(14, 14)
+            smooth: true
+            source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%23FFFFFF' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><polyline points='2.5 7.5 5.5 10.5 11.5 3.5'/></svg>"
         }
     }
 }

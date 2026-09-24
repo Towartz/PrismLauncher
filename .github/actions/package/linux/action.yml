@@ -86,6 +86,16 @@ runs:
           --dst-dir "$INSTALL_APPIMAGE_DIR" \
           "$INSTALL_APPIMAGE_DIR"/bin/* "$QT_PLUGIN_PATH"/*/*.so
 
+        if [ -d "$QT_ROOT_DIR/qml/QtQuick" ]; then
+          mkdir -p "$INSTALL_APPIMAGE_DIR"/qml "$INSTALL_APPIMAGE_DIR"/bin/qml
+          cp -r "$QT_ROOT_DIR"/qml/QtQuick "$INSTALL_APPIMAGE_DIR"/qml/
+          cp -r "$QT_ROOT_DIR"/qml/QtQuick "$INSTALL_APPIMAGE_DIR"/bin/qml/
+          if [ -d "$QT_ROOT_DIR/qml/QtQml" ]; then
+            cp -r "$QT_ROOT_DIR"/qml/QtQml "$INSTALL_APPIMAGE_DIR"/qml/
+            cp -r "$QT_ROOT_DIR"/qml/QtQml "$INSTALL_APPIMAGE_DIR"/bin/qml/
+          fi
+        fi
+
         cp ~/bin/AppImageUpdate.AppImage "$INSTALL_APPIMAGE_DIR"/bin/
         # FIXME(@getchoo): gamemode doesn't seem to be very portable with DBus. Find a way to make it work!
         find "$INSTALL_APPIMAGE_DIR" -name '*gamemode*' -exec rm {} +
@@ -126,6 +136,16 @@ runs:
           --hard-links \
           --dst-dir "$INSTALL_PORTABLE_DIR" \
           "$INSTALL_PORTABLE_DIR"/bin/* "$QT_PLUGIN_PATH"/*/*.so
+
+        if [ -d "$QT_ROOT_DIR/qml/QtQuick" ]; then
+          mkdir -p "$INSTALL_PORTABLE_DIR"/qml "$INSTALL_PORTABLE_DIR"/bin/qml
+          cp -r "$QT_ROOT_DIR"/qml/QtQuick "$INSTALL_PORTABLE_DIR"/qml/
+          cp -r "$QT_ROOT_DIR"/qml/QtQuick "$INSTALL_PORTABLE_DIR"/bin/qml/
+          if [ -d "$QT_ROOT_DIR/qml/QtQml" ]; then
+            cp -r "$QT_ROOT_DIR"/qml/QtQml "$INSTALL_PORTABLE_DIR"/qml/
+            cp -r "$QT_ROOT_DIR"/qml/QtQml "$INSTALL_PORTABLE_DIR"/bin/qml/
+          fi
+        fi
 
         # FIXME(@getchoo): gamemode doesn't seem to be very portable with DBus. Find a way to make it work!
         find "$INSTALL_PORTABLE_DIR" -name '*gamemode*' -exec rm {} +

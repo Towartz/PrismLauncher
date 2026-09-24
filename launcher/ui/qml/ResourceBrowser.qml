@@ -17,8 +17,6 @@
  */
 
 import QtQuick
-import QtQuick.Controls
-import QtQuick.Shapes
 
 Rectangle {
     id: root
@@ -51,16 +49,12 @@ Rectangle {
         clip: true
         model: resourceModel
 
-        ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AsNeeded
-        }
-
         delegate: ModCard {
             width: gridView.cellWidth - 4
             height: 144
             isGridMode: true
             isSelected: index === root.selectedRow
-            theme: root.themeBridge
+            themeBridge: root.themeBridge
             onClicked: {
                 root.selectedRow = index;
                 root.itemActivated(index);
@@ -68,6 +62,18 @@ Rectangle {
             onDoubleClicked: {
                 root.itemToggled(index);
             }
+        }
+
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: 1
+            width: 5
+            radius: 2.5
+            color: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
+            opacity: 0.45
+            visible: gridView.contentHeight > gridView.height
+            y: gridView.visibleArea.yPosition * gridView.height
+            height: Math.max(24, gridView.visibleArea.heightRatio * gridView.height)
         }
     }
 
@@ -81,16 +87,12 @@ Rectangle {
         clip: true
         model: resourceModel
 
-        ScrollBar.vertical: ScrollBar {
-            policy: ScrollBar.AsNeeded
-        }
-
         delegate: ModCard {
             width: listView.width - 12
             height: 58
             isGridMode: false
             isSelected: index === root.selectedRow
-            theme: root.themeBridge
+            themeBridge: root.themeBridge
             onClicked: {
                 root.selectedRow = index;
                 root.itemActivated(index);
@@ -99,46 +101,33 @@ Rectangle {
                 root.itemToggled(index);
             }
         }
+
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: 1
+            width: 5
+            radius: 2.5
+            color: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
+            opacity: 0.45
+            visible: listView.contentHeight > listView.height
+            y: listView.visibleArea.yPosition * listView.height
+            height: Math.max(24, listView.visibleArea.heightRatio * listView.height)
+        }
     }
 
-    // Empty state placeholder
+    // Empty state placeholder with pure SVG icon
     Column {
         anchors.centerIn: parent
         spacing: 10
         visible: (root.isGridMode ? gridView.count === 0 : listView.count === 0)
 
-        Shape {
+        Image {
             anchors.horizontalCenter: parent.horizontalCenter
             width: 36
             height: 36
-            layer.enabled: true
-            layer.samples: 4
-
-            ShapePath {
-                strokeColor: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
-                strokeWidth: 2.8
-                fillColor: "transparent"
-                capStyle: ShapePath.RoundCap
-
-                PathAngleArc {
-                    centerX: 15
-                    centerY: 15
-                    radiusX: 10
-                    radiusY: 10
-                    startAngle: 0
-                    sweepAngle: 360
-                }
-            }
-
-            ShapePath {
-                strokeColor: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
-                strokeWidth: 2.8
-                fillColor: "transparent"
-                capStyle: ShapePath.RoundCap
-                startX: 22.5
-                startY: 22.5
-                PathLine { x: 31; y: 31 }
-            }
+            sourceSize: Qt.size(36, 36)
+            smooth: true
+            source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24' fill='none' stroke='%23A6ADC8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='7'/><line x1='21' y1='21' x2='16.65' y2='16.65'/></svg>"
         }
 
         Text {

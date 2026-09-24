@@ -58,6 +58,7 @@
 #include "ui/widgets/ProjectItem.h"
 
 #include <QQmlContext>
+#include <QQmlEngine>
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QStackedWidget>
@@ -96,6 +97,8 @@ ResourcePage::ResourcePage(ResourceDownloadDialog* parent,
 {
     m_ui->setupUi(this);
 
+    m_ui->resourceFilterButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    m_ui->horizontalLayout->setStretchFactor(m_ui->resourceFilterButton, 0);
     m_ui->horizontalLayout->setStretchFactor(m_ui->searchEdit, 1);
 
     if (!supportsFiltering()) {
@@ -118,9 +121,11 @@ ResourcePage::ResourcePage(ResourceDownloadDialog* parent,
     m_ui->splitter->setStretchFactor(2, 5);
 
     m_viewModeButton = new QToolButton(this);
+    m_viewModeButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     m_viewModeButton->setToolTip(tr("Switch between Grid, Compact List, and Classic view"));
     m_viewModeButton->setFocusPolicy(Qt::NoFocus);
     m_ui->horizontalLayout->addWidget(m_viewModeButton);
+    m_ui->horizontalLayout->setStretchFactor(m_viewModeButton, 0);
     connect(m_viewModeButton, &QToolButton::clicked, this, &ResourcePage::cycleViewMode);
     updateViewModeButton();
 
@@ -174,7 +179,11 @@ void ResourcePage::openedImpl()
 {
     initQuickWidget();
 
+    m_ui->horizontalLayout->setStretchFactor(m_ui->resourceFilterButton, 0);
     m_ui->horizontalLayout->setStretchFactor(m_ui->searchEdit, 1);
+    if (m_viewModeButton) {
+        m_ui->horizontalLayout->setStretchFactor(m_viewModeButton, 0);
+    }
 
     if (!supportsFiltering()) {
         m_ui->resourceFilterButton->hide();
@@ -824,19 +833,29 @@ void ResourcePage::initQuickWidget()
         m_themeBridge = new QmlThemeBridge(this);
     }
 
-    m_quickWidget = new QQuickWidget(this);
+    m_quickWidget = new QQuickWidget(m_viewStack);
+    m_quickWidget->hide();
     m_quickWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_quickWidget->setMinimumWidth(260);
     m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_quickWidget->setClearColor(palette().color(QPalette::Window));
+
+    if (auto* engine = m_quickWidget->engine()) {
+        engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
+        engine->addImportPath(QCoreApplication::applicationDirPath() + "/../qml");
+        engine->addImportPath(QCoreApplication::applicationDirPath() + "/../Resources/qml");
+    }
 
     m_quickWidget->rootContext()->setContextProperty("resourceModel", m_model);
     m_quickWidget->rootContext()->setContextProperty("theme", m_themeBridge);
 
     m_quickWidget->setSource(QUrl("qrc:/qml/ResourceBrowser.qml"));
 
-    if (m_quickWidget->status() == QQuickWidget::Error) {
+    if (m_quickWidget->status() == QQuickWidget::Error || !m_quickWidget->rootObject()) {
         qWarning() << "ResourceBrowser QML failed to load:" << m_quickWidget->errors();
+        m_quickWidget->hide();
+        m_quickWidget->deleteLater();
+        m_quickWidget = nullptr;
         m_viewStack->setCurrentWidget(m_ui->packView);
         m_currentViewMode = ViewMode::Classic;
         if (m_viewModeButton) {
