@@ -18,6 +18,7 @@
 
 #include "minecraft/MinecraftInstance.h"
 #include "minecraft/PackProfile.h"
+#include "minecraft/mod/Mod.h"
 
 #include "modplatform/EnsureMetadataTask.h"
 #include "modplatform/flame/FlameCheckUpdate.h"
@@ -66,7 +67,7 @@ ResourceUpdateDialog::ResourceUpdateDialog(QWidget* parent,
     , m_loadersList(std::move(loadersList))
     , m_releaseTypes(std::move(releaseTypes))
 {
-    ReviewMessageBox::setGeometry(0, 0, 800, 600);
+    resize(920, 600);
 
     if (m_releaseTypes.empty()) {
         auto settingVal = APPLICATION->settings()->get("ModUpdateReleaseTypes");
@@ -488,68 +489,40 @@ void ResourceUpdateDialog::onMetadataFailed(Resource* resource, bool tryOthers, 
 
 void ResourceUpdateDialog::appendResource(const CheckUpdateTask::Update& info, QStringList requiredBy)
 {
-    auto* itemTop = new QTreeWidgetItem(ui->modTreeWidget->topLevelItem(0));
-    itemTop->setCheckState(0, info.enabled ? Qt::CheckState::Checked : Qt::CheckState::Unchecked);
-    if (!info.enabled) {
-        itemTop->setToolTip(0, tr("Mod was disabled as it may be already installed."));
-    }
-    itemTop->setText(0, info.name);
-    itemTop->setExpanded(true);
-
-    auto* providerItem = new QTreeWidgetItem(itemTop);
-    QString providerName = ModPlatform::ProviderCapabilities::readableName(info.provider);
-    providerItem->setText(0, tr("Provider: %1").arg(providerName));
-    providerItem->setData(0, Qt::UserRole, providerName);
-
-    auto* oldVersionItem = new QTreeWidgetItem(itemTop);
-    oldVersionItem->setText(0, tr("Old version: %1").arg(info.oldVersion));
-    oldVersionItem->setData(0, Qt::UserRole, info.oldVersion);
-
-    auto* newVersionItem = new QTreeWidgetItem(itemTop);
-    newVersionItem->setText(0, tr("New version: %1").arg(info.newVersion));
-    newVersionItem->setData(0, Qt::UserRole, info.newVersion);
-
-    if (info.newVersionType.has_value()) {
-        auto* newVersionTypeItem = new QTreeWidgetItem(itemTop);
-        newVersionTypeItem->setText(0, tr("New Version Type: %1").arg(info.newVersionType.value().toString()));
-        newVersionTypeItem->setData(0, Qt::UserRole, info.newVersionType.value().toString());
-    }
-
-    if (!requiredBy.isEmpty()) {
-        auto* requiredByItem = new QTreeWidgetItem(itemTop);
-        if (requiredBy.length() == 1) {
-            requiredByItem->setText(0, tr("Required by: %1").arg(requiredBy.back()));
-            requiredByItem->setData(0, Qt::UserRole, requiredBy.back());
-        } else {
-            requiredByItem->setText(0, tr("Required by:"));
-            for (const auto& req : requiredBy) {
-                auto* reqItem = new QTreeWidgetItem(requiredByItem);
-                reqItem->setText(0, req);
-            }
+    QIcon resourceIcon;
+    for (auto* res : m_candidates) {
+        if (!res) {
+            continue;
         }
-
-        ui->toggleDepsButton->show();
-        m_deps << itemTop;
+        if (res->name() == info.name || (res->metadata() && res->metadata()->name == info.name)) {
+            if (auto* mod = dynamic_cast<Mod*>(res)) {
+                QPixmap pix = mod->icon(QSize(36, 36), Qt::KeepAspectRatio);
+                if (!pix.isNull()) {
+                    resourceIcon = QIcon(pix);
+                }
+            }
+            break;
+        }
     }
 
-    auto* changelogItem = new QTreeWidgetItem(itemTop);
-    changelogItem->setText(0, tr("Changelog of the latest version"));
-
-    auto* changelog = new QTreeWidgetItem(changelogItem);
-    auto* changelogArea = new QTextBrowser();
-
-    QString text = info.changelog;
-    changelog->setData(0, Qt::UserRole, text);
+    QString changelogHtml = info.changelog;
     if (info.provider == ModPlatform::ResourceProvider::MODRINTH) {
-        text = markdownToHTML(info.changelog.toUtf8());
+        changelogHtml = markdownToHTML(info.changelog.toUtf8());
     }
+    changelogHtml = StringUtils::htmlListPatch(changelogHtml);
 
-    changelogArea->setHtml(StringUtils::htmlListPatch(text));
-    changelogArea->setOpenExternalLinks(true);
-    changelogArea->setLineWrapMode(QTextBrowser::LineWrapMode::WidgetWidth);
-    changelogArea->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-
-    ui->modTreeWidget->setItemWidget(changelog, 0, changelogArea);
+    ReviewMessageBox::appendResource({
+        .name = info.name,
+        .filename = info.download ? info.download->getFilename() : QString(),
+        .provider = ModPlatform::ProviderCapabilities::readableName(info.provider),
+        .required_by = std::move(requiredBy),
+        .version_type = info.newVersionType.has_value() ? info.newVersionType.value().toString() : QString(),
+        .enabled = info.enabled,
+        .old_version = info.oldVersion,
+        .new_version = info.newVersion,
+        .changelog_html = std::move(changelogHtml),
+        .icon = std::move(resourceIcon),
+    });
 }
 
 auto ResourceUpdateDialog::getTasks() const -> QList<ResourceDownloadTask::Ptr>
