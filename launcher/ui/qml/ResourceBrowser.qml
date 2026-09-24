@@ -18,6 +18,7 @@
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 
 Rectangle {
     id: root
@@ -105,10 +106,38 @@ Rectangle {
         spacing: 10
         visible: (root.isGridMode ? gridView.count === 0 : listView.count === 0)
 
-        Text {
+        Shape {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "🔍"
-            font.pixelSize: 32
+            width: 36
+            height: 36
+            layer.enabled: true
+            layer.samples: 4
+
+            ShapePath {
+                strokeColor: theme ? theme.textSecondary : "#A6ADC8"
+                strokeWidth: 2.8
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+
+                PathAngleArc {
+                    centerX: 15
+                    centerY: 15
+                    radiusX: 10
+                    radiusY: 10
+                    startAngle: 0
+                    sweepAngle: 360
+                }
+            }
+
+            ShapePath {
+                strokeColor: theme ? theme.textSecondary : "#A6ADC8"
+                strokeWidth: 2.8
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                startX: 22.5
+                startY: 22.5
+                PathLine { x: 31; y: 31 }
+            }
         }
 
         Text {

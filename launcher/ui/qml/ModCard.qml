@@ -18,6 +18,7 @@
 
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Shapes
 
 Item {
     id: root
@@ -66,7 +67,7 @@ Item {
             anchors.margins: 10
             visible: root.isGridMode
 
-            // Icon with monogram fallback
+            // Icon with monogram and vector cube fallback
             Rectangle {
                 id: iconRect
                 width: 44
@@ -77,14 +78,47 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: iconImg.status !== Image.Ready
+                    visible: iconImg.status !== Image.Ready && text.length > 0
                     text: {
                         var t = (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "");
-                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "📦";
+                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "";
                     }
                     font.bold: true
                     font.pixelSize: 18
                     color: theme ? theme.accentColor : "#3B82F6"
+                }
+
+                // Vector cube outline if no text is available
+                Shape {
+                    anchors.centerIn: parent
+                    width: 20
+                    height: 20
+                    layer.enabled: true
+                    layer.samples: 4
+                    visible: iconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
+
+                    ShapePath {
+                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeWidth: 1.8
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        joinStyle: ShapePath.RoundJoin
+                        startX: 3; startY: 6
+                        PathLine { x: 10; y: 2 }
+                        PathLine { x: 17; y: 6 }
+                        PathLine { x: 17; y: 14 }
+                        PathLine { x: 10; y: 18 }
+                        PathLine { x: 3; y: 14 }
+                        PathLine { x: 3; y: 6 }
+                    }
+                    ShapePath {
+                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeWidth: 1.8
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        startX: 10; startY: 2
+                        PathLine { x: 10; y: 18 }
+                    }
                 }
 
                 Image {
@@ -197,21 +231,48 @@ Item {
                     }
                 }
 
-                // Installed / Selected badge
+                // Installed / Selected badge with vector checkmark
                 Rectangle {
                     radius: 4
                     height: 18
-                    width: statusLabel.width + 10
+                    width: badgeRow.width + 12
                     color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? (theme ? theme.accentColor : "#3B82F6") : (theme ? theme.badgeBackground : "#2A2A3C")
                     visible: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
 
-                    Text {
-                        id: statusLabel
+                    Row {
+                        id: badgeRow
                         anchors.centerIn: parent
-                        text: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "✓ Selected" : "Installed"
-                        color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "#FFFFFF" : (theme ? theme.badgeText : "#CAD3F5")
-                        font.pixelSize: 10
-                        font.bold: true
+                        spacing: 4
+
+                        Shape {
+                            width: 8
+                            height: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            layer.enabled: true
+                            layer.samples: 4
+                            visible: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
+
+                            ShapePath {
+                                strokeColor: "#FFFFFF"
+                                strokeWidth: 1.8
+                                fillColor: "transparent"
+                                capStyle: ShapePath.RoundCap
+                                joinStyle: ShapePath.RoundJoin
+                                startX: 1
+                                startY: 4
+                                PathLine { x: 3; y: 6.5 }
+                                PathLine { x: 7; y: 1.5 }
+                            }
+                        }
+
+                        Text {
+                            id: statusLabel
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "Selected" : "Installed"
+                            color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "#FFFFFF" : (theme ? theme.badgeText : "#CAD3F5")
+                            font.pixelSize: 10
+                            font.bold: true
+                        }
                     }
                 }
             }
@@ -234,14 +295,38 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: listIconImg.status !== Image.Ready
+                    visible: listIconImg.status !== Image.Ready && text.length > 0
                     text: {
                         var t = (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "");
-                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "📦";
+                        return (t && t.length > 0) ? t.substring(0, 1).toUpperCase() : "";
                     }
                     font.bold: true
                     font.pixelSize: 14
                     color: theme ? theme.accentColor : "#3B82F6"
+                }
+
+                Shape {
+                    anchors.centerIn: parent
+                    width: 16
+                    height: 16
+                    layer.enabled: true
+                    layer.samples: 4
+                    visible: listIconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
+
+                    ShapePath {
+                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeWidth: 1.5
+                        fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        joinStyle: ShapePath.RoundJoin
+                        startX: 2.5; startY: 5
+                        PathLine { x: 8; y: 1.5 }
+                        PathLine { x: 13.5; y: 5 }
+                        PathLine { x: 13.5; y: 11 }
+                        PathLine { x: 8; y: 14.5 }
+                        PathLine { x: 2.5; y: 11 }
+                        PathLine { x: 2.5; y: 5 }
+                    }
                 }
 
                 Image {

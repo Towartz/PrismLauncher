@@ -82,19 +82,31 @@ Item {
         }
     }
 
-    // Installed checkmark indicator
+    // Installed vector checkmark indicator
     Rectangle {
         anchors.fill: parent
         radius: width / 2
         color: root.ringColor
         visible: root.isInstalled && !root.isDownloading
 
-        Text {
+        Shape {
             anchors.centerIn: parent
-            text: "✓"
-            color: "#FFFFFF"
-            font.bold: true
-            font.pixelSize: 15
+            width: 14
+            height: 14
+            layer.enabled: true
+            layer.samples: 4
+
+            ShapePath {
+                strokeColor: "#FFFFFF"
+                strokeWidth: 2.2
+                fillColor: "transparent"
+                capStyle: ShapePath.RoundCap
+                joinStyle: ShapePath.RoundJoin
+                startX: 2.5
+                startY: 7
+                PathLine { x: 5.5; y: 10.5 }
+                PathLine { x: 11.5; y: 3.5 }
+            }
         }
     }
 }
