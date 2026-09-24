@@ -131,7 +131,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          ctest --preset "$CMAKE_PRESET" --build-config "$BUILD_TYPE"
+          ctest --preset "$CMAKE_PRESET" --build-config "$BUILD_TYPE" --parallel
 
       ##
       # PACKAGE

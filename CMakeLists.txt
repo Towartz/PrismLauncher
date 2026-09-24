@@ -52,17 +52,12 @@ if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     )
 
     add_link_options(
-        # /LTCG allows for linking wholy optimizated programs (/cgthreads:8 uses max parallel LTCG codegen threads)
         # /MANIFEST:NO disables generating a manifest file, we instead provide our own
         # /STACK sets the stack reserve size, ATL's pack list needs 3-4 MiB as of November 2022, provide 8 MiB
-        "$<$<COMPILE_LANGUAGE:C,CXX>:/LTCG;/cgthreads:8;/MANIFEST:NO;/STACK:8388608>"
+        # /OPT:REF and /OPT:ICF eliminate unreferenced functions/data and fold identical COMDATs
+        "$<$<COMPILE_LANGUAGE:C,CXX>:/MANIFEST:NO;/STACK:8388608>"
+        "$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:/OPT:REF;/OPT:ICF>"
     )
-
-    # /GL enables whole program optimizations
-    # NOTE: With Clang, this is implemented as regular LTO and only used during linking
-    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:/GL>")
-    endif()
 
     # See https://github.com/ccache/ccache/issues/1040
     # TODO(@getchoo): Is sccache affected by this? Would be nice to use `ProgramDatabase`....
@@ -85,14 +80,18 @@ else()
         add_compile_options("$<$<AND:$<COMPILE_LANGUAGE:C,CXX>,$<CONFIG:Release,RelWithDebInfo>>:-D_FORTIFY_SOURCE=2>")
     endif()
 
-    # ATL's pack list needs more than the default 1 Mib stack on windows
-    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        add_link_options("$<$<COMPILE_LANGUAGE:C,CXX>:-Wl,--stack,8388608>")
+    # Emit individual function and data sections so the linker can garbage-collect unreferenced code/data
+    add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-ffunction-sections;-fdata-sections>")
 
-        # -ffunction-sections and -fdata-sections help reduce binary size
-        # -mguard=cf enables Control Flow Guard
-        # TODO: Look into -gc-sections to further reduce binary size
-        add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-ffunction-sections;-fdata-sections;-mguard=cf>")
+    if(APPLE)
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-Wl,-dead_strip>")
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        # ATL's pack list needs more than the default 1 Mib stack on windows
+        add_link_options("$<$<COMPILE_LANGUAGE:C,CXX>:-Wl,--stack,8388608>")
+        add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-mguard=cf>")
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-Wl,--gc-sections>")
+    else()
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo>,$<COMPILE_LANGUAGE:C,CXX>>:-Wl,--gc-sections;-Wl,-O1;-Wl,--as-needed>")
     endif()
 endif()
 
@@ -145,24 +144,36 @@ endif()
 option(ENABLE_LTO "Enable Link Time Optimization" off)
 
 if(ENABLE_LTO)
-    include(CheckIPOSupported)
-    check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
-
-    if(ipo_supported)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL TRUE)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
-        if(CMAKE_BUILD_TYPE)
-            if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-                message(STATUS "IPO / LTO enabled")
-            else()
-                message(STATUS "Not enabling IPO / LTO on debug builds")
-            endif()
-        else()
-            message(STATUS "IPO / LTO will only be enabled for release builds")
+    if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+            add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:/GL>")
         endif()
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:/LTCG;/cgthreads:8>")
+        message(STATUS "IPO / LTO enabled (MSVC /GL + /LTCG /cgthreads:8)")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-flto=thin>")
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-flto=thin>")
+        if(APPLE)
+            add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-Wl,-cache_path_lto,${CMAKE_BINARY_DIR}/lto.cache>")
+        elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+            add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-Wl,--thinlto-cache-dir=${CMAKE_BINARY_DIR}/lto.cache>")
+        endif()
+        message(STATUS "IPO / ThinLTO enabled (-flto=thin)")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        add_compile_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-flto=auto;-ffat-lto-objects>")
+        add_link_options("$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<COMPILE_LANGUAGE:C,CXX>>:-flto=auto>")
+        message(STATUS "IPO / Parallel LTO enabled (GCC -flto=auto)")
     else()
-        message(STATUS "IPO / LTO not supported: <${ipo_error}>")
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT ipo_supported OUTPUT ipo_error)
+        if(ipo_supported)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL TRUE)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+            message(STATUS "IPO / LTO enabled")
+        else()
+            message(STATUS "IPO / LTO not supported: <${ipo_error}>")
+        endif()
     endif()
 endif()
 
