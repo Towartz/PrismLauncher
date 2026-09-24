@@ -820,8 +820,6 @@ void ResourcePage::initQuickWidget()
         return;
     }
 
-    Q_INIT_RESOURCE(qml);
-
     if (!m_themeBridge) {
         m_themeBridge = new QmlThemeBridge(this);
     }
