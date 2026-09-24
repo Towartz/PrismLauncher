@@ -96,21 +96,33 @@ ResourcePage::ResourcePage(ResourceDownloadDialog* parent,
 {
     m_ui->setupUi(this);
 
+    m_ui->horizontalLayout->setStretchFactor(m_ui->searchEdit, 1);
+
+    if (!supportsFiltering()) {
+        m_ui->resourceFilterButton->hide();
+        m_ui->resourceFilterButton->setEnabled(false);
+        m_ui->filterWidget->hide();
+    } else {
+        m_ui->resourceFilterButton->show();
+        m_ui->resourceFilterButton->setEnabled(true);
+        m_ui->resourceFilterButton->setText(tr("Filter options"));
+    }
+
     m_viewStack = new QStackedWidget(m_ui->splitter);
     int packViewIndex = m_ui->splitter->indexOf(m_ui->packView);
     m_ui->splitter->insertWidget(packViewIndex, m_viewStack);
     m_viewStack->addWidget(m_ui->packView);
 
-    m_ui->splitter->setStretchFactor(0, 1);
+    m_ui->splitter->setStretchFactor(0, 0);
     m_ui->splitter->setStretchFactor(packViewIndex, 4);
     m_ui->splitter->setStretchFactor(2, 5);
 
     m_viewModeButton = new QToolButton(this);
-    m_viewModeButton->setText(tr("Grid"));
     m_viewModeButton->setToolTip(tr("Switch between Grid, Compact List, and Classic view"));
     m_viewModeButton->setFocusPolicy(Qt::NoFocus);
     m_ui->horizontalLayout->addWidget(m_viewModeButton);
     connect(m_viewModeButton, &QToolButton::clicked, this, &ResourcePage::cycleViewMode);
+    updateViewModeButton();
 
     m_ui->versionSelectionBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_ui->versionSelectionBox->view()->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -155,15 +167,23 @@ ResourcePage::~ResourcePage()
 void ResourcePage::retranslate()
 {
     m_ui->retranslateUi(this);
+    updateViewModeButton();
 }
 
 void ResourcePage::openedImpl()
 {
     initQuickWidget();
 
+    m_ui->horizontalLayout->setStretchFactor(m_ui->searchEdit, 1);
+
     if (!supportsFiltering()) {
-        m_ui->resourceFilterButton->setVisible(false);
+        m_ui->resourceFilterButton->hide();
+        m_ui->resourceFilterButton->setEnabled(false);
         m_ui->filterWidget->hide();
+    } else {
+        m_ui->resourceFilterButton->show();
+        m_ui->resourceFilterButton->setEnabled(true);
+        m_ui->resourceFilterButton->setText(tr("Filter options"));
     }
 
     //: String in the search bar of the mod downloading dialog
@@ -171,23 +191,18 @@ void ResourcePage::openedImpl()
     m_ui->resourceSelectionButton->setText(tr("Select %1 for download").arg(resourceString()));
 
     if (m_model) {
-        connect(
-            m_model, &QAbstractItemModel::rowsInserted, this,
-            [this](const QModelIndex&, int, int) {
-                if (!m_ui->packView->currentIndex().isValid() && m_model->rowCount({}) > 0) {
-                    m_ui->packView->setCurrentIndex(m_model->index(0));
-                }
-            },
-            Qt::UniqueConnection);
+        connect(m_model, &QAbstractItemModel::rowsInserted, this, &ResourcePage::onRowsInserted, Qt::UniqueConnection);
     }
 
     auto currentPack = getCurrentPack();
     bool hasSelectedPack = currentPack && currentPack->versionsLoaded;
 
     if (m_ui->packView->currentIndex().isValid()) {
-        versionListUpdated(m_ui->packView->currentIndex());
+        onSelectionChanged(m_ui->packView->currentIndex(), {});
     } else if (m_model && m_model->rowCount({}) > 0) {
-        m_ui->packView->setCurrentIndex(m_model->index(0));
+        selectFirstRow();
+    } else {
+        updateUi(QModelIndex());
     }
 
     if (m_quickWidget && m_quickWidget->rootObject()) {
@@ -201,6 +216,7 @@ void ResourcePage::openedImpl()
         m_suppressInitialSearch = false;
     }
     updateSelectionButton();
+    m_ui->searchEdit->setCursorPosition(0);
     m_ui->searchEdit->setFocus();
 }
 
@@ -266,14 +282,23 @@ ModPlatform::IndexedPack::Ptr ResourcePage::getCurrentPack() const
 
 void ResourcePage::updateUi(const QModelIndex& index)
 {
-    if (index != m_ui->packView->currentIndex()) {
+    if (index.isValid() && index != m_ui->packView->currentIndex()) {
         return;
     }
 
     auto currentPack = getCurrentPack();
     if (!currentPack) {
-        m_ui->packDescription->setHtml({});
+        QString message = (m_model && m_model->hasActiveSearchJob())
+                              ? tr("Searching for %1...").arg(resourcesString())
+                              : tr("No %1 selected.").arg(resourceString());
+        QString emptyHtml = QString(
+            "<div style='margin-top: 60px; text-align: center; color: %1; font-size: 13px;'>"
+            "%2</div>")
+            .arg(palette().color(QPalette::PlaceholderText).name(), message);
+        m_ui->packDescription->setHtml(emptyHtml);
         m_ui->packDescription->flush();
+        m_ui->versionSelectionBox->clear();
+        m_ui->resourceSelectionButton->setEnabled(false);
         return;
     }
     QString text = "";
@@ -795,11 +820,15 @@ void ResourcePage::initQuickWidget()
         return;
     }
 
+    Q_INIT_RESOURCE(qml);
+
     if (!m_themeBridge) {
         m_themeBridge = new QmlThemeBridge(this);
     }
 
     m_quickWidget = new QQuickWidget(this);
+    m_quickWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_quickWidget->setMinimumWidth(260);
     m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     m_quickWidget->setClearColor(palette().color(QPalette::Window));
 
@@ -811,8 +840,11 @@ void ResourcePage::initQuickWidget()
     if (m_quickWidget->status() == QQuickWidget::Error) {
         qWarning() << "ResourceBrowser QML failed to load:" << m_quickWidget->errors();
         m_viewStack->setCurrentWidget(m_ui->packView);
+        m_currentViewMode = ViewMode::Classic;
         if (m_viewModeButton) {
+            updateViewModeButton();
             m_viewModeButton->setEnabled(false);
+            m_viewModeButton->setToolTip(tr("Modern QML view unavailable."));
         }
         return;
     }
@@ -824,7 +856,48 @@ void ResourcePage::initQuickWidget()
     }
 
     m_viewStack->insertWidget(0, m_quickWidget);
-    m_viewStack->setCurrentWidget(m_quickWidget);
+
+    QString savedMode = "Grid";
+    if (APPLICATION_DYN && APPLICATION->settings()) {
+        savedMode = APPLICATION->settings()->get("ResourceBrowserViewMode").toString();
+    }
+    if (savedMode == "List") {
+        m_currentViewMode = ViewMode::List;
+        m_viewStack->setCurrentWidget(m_quickWidget);
+        if (rootObj) {
+            rootObj->setProperty("isGridMode", false);
+        }
+    } else if (savedMode == "Classic") {
+        m_currentViewMode = ViewMode::Classic;
+        m_viewStack->setCurrentWidget(m_ui->packView);
+    } else {
+        m_currentViewMode = ViewMode::Grid;
+        m_viewStack->setCurrentWidget(m_quickWidget);
+        if (rootObj) {
+            rootObj->setProperty("isGridMode", true);
+        }
+    }
+    updateViewModeButton();
+}
+
+void ResourcePage::onRowsInserted([[maybe_unused]] const QModelIndex& parent, [[maybe_unused]] int first, [[maybe_unused]] int last)
+{
+    if (!m_ui->packView->currentIndex().isValid() && m_model && m_model->rowCount({}) > 0) {
+        selectFirstRow();
+    }
+}
+
+void ResourcePage::selectFirstRow()
+{
+    if (!m_model || m_model->rowCount({}) == 0) {
+        return;
+    }
+    QModelIndex firstIndex = m_model->index(0, 0);
+    m_ui->packView->setCurrentIndex(firstIndex);
+    if (m_ui->packView->selectionModel()) {
+        m_ui->packView->selectionModel()->select(firstIndex, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    }
+    onSelectionChanged(firstIndex, {});
 }
 
 void ResourcePage::onQmlItemActivated(int row)
@@ -834,6 +907,9 @@ void ResourcePage::onQmlItemActivated(int row)
     }
     QModelIndex index = m_model->index(row, 0);
     m_ui->packView->setCurrentIndex(index);
+    if (m_ui->packView->selectionModel()) {
+        m_ui->packView->selectionModel()->select(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    }
     onSelectionChanged(index, {});
 }
 
@@ -846,13 +922,33 @@ void ResourcePage::onQmlItemToggled(int row)
     onResourceToggle(index);
 }
 
+void ResourcePage::updateViewModeButton()
+{
+    if (!m_viewModeButton) {
+        return;
+    }
+    switch (m_currentViewMode) {
+        case ViewMode::Grid:
+            m_viewModeButton->setText(tr("View: Grid"));
+            m_viewModeButton->setToolTip(tr("Current view: Grid. Click to switch to Compact List."));
+            break;
+        case ViewMode::List:
+            m_viewModeButton->setText(tr("View: List"));
+            m_viewModeButton->setToolTip(tr("Current view: Compact List. Click to switch to Classic View."));
+            break;
+        case ViewMode::Classic:
+            m_viewModeButton->setText(tr("View: Classic"));
+            m_viewModeButton->setToolTip(tr("Current view: Classic. Click to switch to Modern Grid."));
+            break;
+    }
+}
+
 void ResourcePage::cycleViewMode()
 {
     if (!m_quickWidget || m_quickWidget->status() != QQuickWidget::Ready) {
         m_viewStack->setCurrentWidget(m_ui->packView);
-        if (m_viewModeButton) {
-            m_viewModeButton->setText(tr("Classic"));
-        }
+        m_currentViewMode = ViewMode::Classic;
+        updateViewModeButton();
         return;
     }
 
@@ -861,19 +957,28 @@ void ResourcePage::cycleViewMode()
         return;
     }
 
-    if (m_viewStack->currentWidget() == m_ui->packView) {
-        m_viewStack->setCurrentWidget(m_quickWidget);
-        rootObj->setProperty("isGridMode", true);
-        m_viewModeButton->setText(tr("Grid"));
-    } else {
-        bool isGrid = rootObj->property("isGridMode").toBool();
-        if (isGrid) {
+    switch (m_currentViewMode) {
+        case ViewMode::Grid:
+            m_currentViewMode = ViewMode::List;
+            m_viewStack->setCurrentWidget(m_quickWidget);
             rootObj->setProperty("isGridMode", false);
-            m_viewModeButton->setText(tr("List"));
-        } else {
+            break;
+        case ViewMode::List:
+            m_currentViewMode = ViewMode::Classic;
             m_viewStack->setCurrentWidget(m_ui->packView);
-            m_viewModeButton->setText(tr("Classic"));
-        }
+            break;
+        case ViewMode::Classic:
+            m_currentViewMode = ViewMode::Grid;
+            m_viewStack->setCurrentWidget(m_quickWidget);
+            rootObj->setProperty("isGridMode", true);
+            break;
+    }
+
+    updateViewModeButton();
+
+    if (APPLICATION_DYN && APPLICATION->settings()) {
+        QString modeStr = (m_currentViewMode == ViewMode::Grid) ? "Grid" : ((m_currentViewMode == ViewMode::List) ? "List" : "Classic");
+        APPLICATION->settings()->set("ResourceBrowserViewMode", modeStr);
     }
 }
 }  // namespace ResourceDownload

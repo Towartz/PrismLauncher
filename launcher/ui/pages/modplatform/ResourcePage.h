@@ -134,10 +134,20 @@ class ResourcePage : public QWidget, public BasePage {
 
     void onQmlItemActivated(int row);
     void onQmlItemToggled(int row);
+    void onRowsInserted(const QModelIndex& parent, int first, int last);
     void cycleViewMode();
 
    protected:
     void initQuickWidget();
+    void selectFirstRow();
+    void updateViewModeButton();
+
+   public:
+    enum class ViewMode {
+        Grid,
+        List,
+        Classic
+    };
 
    public:
     BaseInstance& m_baseInstance;
@@ -152,6 +162,7 @@ class ResourcePage : public QWidget, public BasePage {
     QStackedWidget* m_viewStack = nullptr;
     QToolButton* m_viewModeButton = nullptr;
     QmlThemeBridge* m_themeBridge = nullptr;
+    ViewMode m_currentViewMode = ViewMode::Grid;
 
     int m_selectedVersionIndex = -1;
 

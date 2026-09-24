@@ -22,7 +22,8 @@ import QtQuick.Shapes
 
 Rectangle {
     id: root
-    color: theme ? theme.windowBackground : "#1E1E2E"
+    property var themeBridge: (typeof theme !== "undefined") ? theme : null
+    color: (themeBridge && themeBridge.windowBackground) ? themeBridge.windowBackground : "#1E1E2E"
 
     property bool isGridMode: true
     property int selectedRow: -1
@@ -59,7 +60,7 @@ Rectangle {
             height: 144
             isGridMode: true
             isSelected: index === root.selectedRow
-            theme: root.theme
+            theme: root.themeBridge
             onClicked: {
                 root.selectedRow = index;
                 root.itemActivated(index);
@@ -89,7 +90,7 @@ Rectangle {
             height: 58
             isGridMode: false
             isSelected: index === root.selectedRow
-            theme: root.theme
+            theme: root.themeBridge
             onClicked: {
                 root.selectedRow = index;
                 root.itemActivated(index);
@@ -114,7 +115,7 @@ Rectangle {
             layer.samples: 4
 
             ShapePath {
-                strokeColor: theme ? theme.textSecondary : "#A6ADC8"
+                strokeColor: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
                 strokeWidth: 2.8
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
@@ -130,7 +131,7 @@ Rectangle {
             }
 
             ShapePath {
-                strokeColor: theme ? theme.textSecondary : "#A6ADC8"
+                strokeColor: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
                 strokeWidth: 2.8
                 fillColor: "transparent"
                 capStyle: ShapePath.RoundCap
@@ -143,7 +144,7 @@ Rectangle {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             text: "No resources found"
-            color: theme ? theme.textSecondary : "#A6ADC8"
+            color: (root.themeBridge && root.themeBridge.textSecondary) ? root.themeBridge.textSecondary : "#A6ADC8"
             font.pixelSize: 14
         }
     }

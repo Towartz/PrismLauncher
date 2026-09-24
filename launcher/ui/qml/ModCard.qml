@@ -27,7 +27,7 @@ Item {
 
     property bool isGridMode: true
     property bool isSelected: false
-    property var theme
+    property var theme: (typeof theme !== "undefined") ? theme : null
 
     signal clicked()
     signal doubleClicked()
@@ -41,8 +41,8 @@ Item {
         anchors.fill: parent
         anchors.margins: 4
         radius: isGridMode ? 10 : 8
-        color: isSelected ? theme.cardSelected : (cardArea.containsMouse ? theme.cardHover : theme.cardBackground)
-        border.color: isSelected ? theme.accentColor : (cardArea.containsMouse ? theme.accentColor : theme.borderColor)
+        color: isSelected ? ((theme && theme.cardSelected) ? theme.cardSelected : "#313244") : (cardArea.containsMouse ? ((theme && theme.cardHover) ? theme.cardHover : "#252636") : ((theme && theme.cardBackground) ? theme.cardBackground : "#181825"))
+        border.color: isSelected ? ((theme && theme.accentColor) ? theme.accentColor : "#89B4FA") : (cardArea.containsMouse ? ((theme && theme.accentColor) ? theme.accentColor : "#89B4FA") : ((theme && theme.borderColor) ? theme.borderColor : "#313244"))
         border.width: isSelected ? 2 : 1
 
         Behavior on color {
@@ -73,7 +73,7 @@ Item {
                 width: 44
                 height: 44
                 radius: 8
-                color: theme ? theme.badgeBackground : "#2A2A3C"
+                color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
                 clip: true
 
                 Text {
@@ -85,7 +85,7 @@ Item {
                     }
                     font.bold: true
                     font.pixelSize: 18
-                    color: theme ? theme.accentColor : "#3B82F6"
+                    color: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                 }
 
                 // Vector cube outline if no text is available
@@ -98,7 +98,7 @@ Item {
                     visible: iconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
 
                     ShapePath {
-                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                         strokeWidth: 1.8
                         fillColor: "transparent"
                         capStyle: ShapePath.RoundCap
@@ -112,7 +112,7 @@ Item {
                         PathLine { x: 3; y: 6 }
                     }
                     ShapePath {
-                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                         strokeWidth: 1.8
                         fillColor: "transparent"
                         capStyle: ShapePath.RoundCap
@@ -143,7 +143,7 @@ Item {
                 Text {
                     width: parent.width
                     text: (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "")
-                    color: theme ? theme.textPrimary : "#CAD3F5"
+                    color: (theme && theme.textPrimary) ? theme.textPrimary : "#CAD3F5"
                     font.bold: true
                     font.pixelSize: 13
                     elide: Text.ElideRight
@@ -152,7 +152,7 @@ Item {
                 Text {
                     width: parent.width
                     text: (typeof model.author !== "undefined" && model.author !== "") ? ("by " + model.author) : ""
-                    color: theme ? theme.textSecondary : "#A6ADC8"
+                    color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
                     font.pixelSize: 11
                     elide: Text.ElideRight
                     visible: text.length > 0
@@ -167,7 +167,7 @@ Item {
                 width: 22
                 height: 22
                 isInstalled: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
-                ringColor: theme ? theme.accentColor : "#3B82F6"
+                ringColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                 visible: isInstalled
             }
 
@@ -181,7 +181,7 @@ Item {
                 anchors.topMargin: 8
                 anchors.bottomMargin: 4
                 text: (typeof model.description !== "undefined") ? model.description : ""
-                color: theme ? theme.textSecondary : "#A6ADC8"
+                color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
@@ -201,14 +201,14 @@ Item {
                     radius: 4
                     height: 18
                     width: providerLabel.width + 10
-                    color: theme ? theme.badgeBackground : "#2A2A3C"
+                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
                     visible: (typeof model.provider !== "undefined" && model.provider !== "")
 
                     Text {
                         id: providerLabel
                         anchors.centerIn: parent
                         text: (typeof model.provider !== "undefined") ? model.provider : ""
-                        color: theme ? theme.badgeText : "#CAD3F5"
+                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
                         font.pixelSize: 10
                         font.bold: true
                     }
@@ -219,14 +219,14 @@ Item {
                     radius: 4
                     height: 18
                     width: sideLabel.width + 10
-                    color: theme ? theme.badgeBackground : "#2A2A3C"
+                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
                     visible: (typeof model.side !== "undefined" && model.side !== "")
 
                     Text {
                         id: sideLabel
                         anchors.centerIn: parent
                         text: (typeof model.side !== "undefined") ? model.side : ""
-                        color: theme ? theme.badgeText : "#CAD3F5"
+                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
                         font.pixelSize: 10
                     }
                 }
@@ -236,7 +236,7 @@ Item {
                     radius: 4
                     height: 18
                     width: badgeRow.width + 12
-                    color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? (theme ? theme.accentColor : "#3B82F6") : (theme ? theme.badgeBackground : "#2A2A3C")
+                    color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? ((theme && theme.accentColor) ? theme.accentColor : "#3B82F6") : ((theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C")
                     visible: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
 
                     Row {
@@ -269,7 +269,7 @@ Item {
                             id: statusLabel
                             anchors.verticalCenter: parent.verticalCenter
                             text: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "Selected" : "Installed"
-                            color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "#FFFFFF" : (theme ? theme.badgeText : "#CAD3F5")
+                            color: (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked) ? "#FFFFFF" : ((theme && theme.badgeText) ? theme.badgeText : "#CAD3F5")
                             font.pixelSize: 10
                             font.bold: true
                         }
@@ -290,7 +290,7 @@ Item {
                 height: 36
                 anchors.verticalCenter: parent.verticalCenter
                 radius: 6
-                color: theme ? theme.badgeBackground : "#2A2A3C"
+                color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
                 clip: true
 
                 Text {
@@ -302,7 +302,7 @@ Item {
                     }
                     font.bold: true
                     font.pixelSize: 14
-                    color: theme ? theme.accentColor : "#3B82F6"
+                    color: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                 }
 
                 Shape {
@@ -314,7 +314,7 @@ Item {
                     visible: listIconImg.status !== Image.Ready && (!model.title || model.title.length === 0)
 
                     ShapePath {
-                        strokeColor: theme ? theme.accentColor : "#3B82F6"
+                        strokeColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                         strokeWidth: 1.5
                         fillColor: "transparent"
                         capStyle: ShapePath.RoundCap
@@ -349,7 +349,7 @@ Item {
                 Text {
                     width: parent.width
                     text: (typeof model.title !== "undefined" && model.title !== "") ? model.title : ((typeof model.display !== "undefined") ? model.display : "")
-                    color: theme ? theme.textPrimary : "#CAD3F5"
+                    color: (theme && theme.textPrimary) ? theme.textPrimary : "#CAD3F5"
                     font.bold: true
                     font.pixelSize: 13
                     elide: Text.ElideRight
@@ -358,7 +358,7 @@ Item {
                 Text {
                     width: parent.width
                     text: (typeof model.description !== "undefined") ? model.description : ""
-                    color: theme ? theme.textSecondary : "#A6ADC8"
+                    color: (theme && theme.textSecondary) ? theme.textSecondary : "#A6ADC8"
                     font.pixelSize: 11
                     elide: Text.ElideRight
                 }
@@ -374,14 +374,14 @@ Item {
                     radius: 4
                     height: 18
                     width: listProviderLabel.width + 10
-                    color: theme ? theme.badgeBackground : "#2A2A3C"
+                    color: (theme && theme.badgeBackground) ? theme.badgeBackground : "#2A2A3C"
                     visible: (typeof model.provider !== "undefined" && model.provider !== "")
 
                     Text {
                         id: listProviderLabel
                         anchors.centerIn: parent
                         text: (typeof model.provider !== "undefined") ? model.provider : ""
-                        color: theme ? theme.badgeText : "#CAD3F5"
+                        color: (theme && theme.badgeText) ? theme.badgeText : "#CAD3F5"
                         font.pixelSize: 10
                     }
                 }
@@ -391,7 +391,7 @@ Item {
                     height: 20
                     anchors.verticalCenter: parent.verticalCenter
                     isInstalled: (typeof model.installed !== "undefined" && model.installed) || (typeof model.checkState !== "undefined" && model.checkState === Qt.Checked)
-                    ringColor: theme ? theme.accentColor : "#3B82F6"
+                    ringColor: (theme && theme.accentColor) ? theme.accentColor : "#3B82F6"
                     visible: isInstalled
                 }
             }
