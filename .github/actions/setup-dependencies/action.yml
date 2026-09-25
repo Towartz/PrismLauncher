@@ -44,12 +44,6 @@ runs:
       with:
         build-type: ${{ inputs.build-type }}
 
-    # old python versions detect 7z files as zip, breaking aqtinstall. see https://github.com/miurahr/aqtinstall/issues/1042
-    - name: Update Python
-      uses: actions/setup-python@v7
-      with:
-        python-version: '3.14'
-
     - name: Setup Windows dependencies
       if: ${{ runner.os == 'Windows' }}
       uses: ./.github/actions/setup-dependencies/windows
@@ -117,6 +111,12 @@ runs:
         esac
 
         echo "VCPKG_TRIPLET=$vcpkg_arch-$vcpkg_platform" >> "$GITHUB_ENV"
+
+    # old python versions detect 7z files as zip, breaking aqtinstall. see https://github.com/miurahr/aqtinstall/issues/1042
+    - name: Update Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.14'
 
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
