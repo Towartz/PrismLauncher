@@ -375,6 +375,10 @@ void ResourceFolderModel::resolveResource(const Resource::Ptr& res)
         return;
     }
 
+    if (m_instance && (m_instance->isRunning() || m_instance->getLaunchTask() != nullptr)) {
+        return;
+    }
+
     Task::Ptr task{ createParseTask(*res) };
     if (!task) {
         return;

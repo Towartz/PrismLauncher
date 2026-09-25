@@ -45,21 +45,33 @@ void ScanModFolders::executeTask()
     auto m_inst = m_parent->instance();
 
     auto loaders = m_inst->loaderModList();
-    connect(loaders, &ModFolderModel::updateFinished, this, &ScanModFolders::modsDone, Qt::SingleShotConnection);
-    if (!loaders->update()) {
+    if (!loaders->empty()) {
         m_modsDone = true;
+    } else {
+        connect(loaders, &ModFolderModel::updateFinished, this, &ScanModFolders::modsDone, Qt::SingleShotConnection);
+        if (!loaders->update()) {
+            m_modsDone = true;
+        }
     }
 
     auto cores = m_inst->coreModList();
-    connect(cores, &ModFolderModel::updateFinished, this, &ScanModFolders::coreModsDone, Qt::SingleShotConnection);
-    if (!cores->update()) {
+    if (!cores->empty() || !cores->dir().exists()) {
         m_coreModsDone = true;
+    } else {
+        connect(cores, &ModFolderModel::updateFinished, this, &ScanModFolders::coreModsDone, Qt::SingleShotConnection);
+        if (!cores->update()) {
+            m_coreModsDone = true;
+        }
     }
 
     auto nils = m_inst->nilModList();
-    connect(nils, &ModFolderModel::updateFinished, this, &ScanModFolders::nilModsDone, Qt::SingleShotConnection);
-    if (!nils->update()) {
+    if (!nils->empty() || !nils->dir().exists()) {
         m_nilModsDone = true;
+    } else {
+        connect(nils, &ModFolderModel::updateFinished, this, &ScanModFolders::nilModsDone, Qt::SingleShotConnection);
+        if (!nils->update()) {
+            m_nilModsDone = true;
+        }
     }
     checkDone();
 }

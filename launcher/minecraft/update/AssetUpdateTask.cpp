@@ -71,6 +71,19 @@ void AssetUpdateTask::assetIndexFinished()
     auto assets = profile->getMinecraftAssets();
 
     QString asset_fname = "assets/indexes/" + assets->id + ".json";
+    QString verified_fname = "assets/indexes/" + assets->id + ".verified";
+
+    if (!assets->sha1.isEmpty() && QFile::exists(verified_fname)) {
+        QFile vfile(verified_fname);
+        if (vfile.open(QIODevice::ReadOnly)) {
+            const QString cachedSha1 = QString::fromUtf8(vfile.readAll()).trimmed();
+            if (cachedSha1 == assets->sha1) {
+                emitSucceeded();
+                return;
+            }
+        }
+    }
+
     // FIXME: this looks like a job for a generic validator based on json schema?
     if (!AssetsUtils::loadAssetsIndexJson(assets->id, asset_fname, index)) {
         auto metacache = APPLICATION->metacache();
@@ -79,6 +92,16 @@ void AssetUpdateTask::assetIndexFinished()
         emitFailed(tr("Failed to read the assets index!"));
         return;
     }
+
+    auto writeVerifiedStamp = [verified_fname, expectedSha1 = assets->sha1]() {
+        if (expectedSha1.isEmpty()) {
+            return;
+        }
+        QFile vfile(verified_fname);
+        if (vfile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            vfile.write(expectedSha1.toUtf8());
+        }
+    };
 
     auto job = index.getDownloadJob();
     if (job) {
@@ -89,7 +112,10 @@ void AssetUpdateTask::assetIndexFinished()
         }
         setStatus(tr("Getting the asset files from %1...").arg(source));
         downloadJob = job;
-        connect(downloadJob.get(), &NetJob::succeeded, this, &AssetUpdateTask::emitSucceeded);
+        connect(downloadJob.get(), &NetJob::succeeded, this, [this, writeVerifiedStamp]() {
+            writeVerifiedStamp();
+            emitSucceeded();
+        });
         connect(downloadJob.get(), &NetJob::failed, this, &AssetUpdateTask::assetsFailed);
         connect(downloadJob.get(), &NetJob::aborted, this, &AssetUpdateTask::emitAborted);
         connect(downloadJob.get(), &NetJob::progress, this, &AssetUpdateTask::progress);
@@ -97,6 +123,7 @@ void AssetUpdateTask::assetIndexFinished()
         downloadJob->start();
         return;
     }
+    writeVerifiedStamp();
     emitSucceeded();
 }
 

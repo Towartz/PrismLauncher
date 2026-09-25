@@ -128,28 +128,15 @@ bool loadAssetsIndexJson(const QString& assetsId, const QString& path, AssetsInd
         index.mapToResources = mapToResources.toBool(false);
     }
 
-    QJsonValue objects = root.value("objects");
-    QVariantMap map = objects.toVariant().toMap();
+    const QJsonObject objects = root.value("objects").toObject();
+    index.objects.reserve(objects.size());
 
-    for (QVariantMap::const_iterator iter = map.begin(); iter != map.end(); ++iter) {
-        // qDebug() << iter.key();
-
-        const auto& variant = iter.value();
-        auto nestedObjects = variant.toMap();
+    for (auto iter = objects.begin(); iter != objects.end(); ++iter) {
+        const QJsonObject nestedObj = iter.value().toObject();
 
         AssetObject object;
-
-        for (auto nestedIter = nestedObjects.begin(); nestedIter != nestedObjects.end(); ++nestedIter) {
-            // qDebug() << nested_iter.key() << nested_iter.value().toString();
-            const auto& key = nestedIter.key();
-            const auto& value = nestedIter.value();
-
-            if (key == "hash") {
-                object.hash = value.toString();
-            } else if (key == "size") {
-                object.size = value.toLongLong();
-            }
-        }
+        object.hash = nestedObj.value("hash").toString();
+        object.size = nestedObj.value("size").toInteger();
 
         index.objects.insert(iter.key(), object);
     }

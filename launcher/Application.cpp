@@ -1694,12 +1694,6 @@ void Application::setLowPriorityMode(bool lowPriority)
     if (m_instances) {
         m_instances->setGameplaySuspension(lowPriority);
     }
-
-#if defined(Q_OS_WIN32)
-    SetPriorityClass(GetCurrentProcess(), lowPriority ? BELOW_NORMAL_PRIORITY_CLASS : NORMAL_PRIORITY_CLASS);
-#elif defined(Q_OS_UNIX)
-    (void)setpriority(PRIO_PROCESS, 0, lowPriority ? 10 : 0);
-#endif
 }
 
 bool Application::shouldExitNow() const

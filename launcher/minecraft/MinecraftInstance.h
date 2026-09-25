@@ -155,9 +155,6 @@ class MinecraftInstance : public BaseInstance {
 
     virtual JavaVersion getJavaVersion();
 
-    QString computeCdsFingerprint();
-    QStringList cdsJavaArguments();
-
    protected slots:
     void setBackgroundWatchersSuspended(bool suspended);
 
