@@ -129,7 +129,6 @@ bool loadAssetsIndexJson(const QString& assetsId, const QString& path, AssetsInd
     }
 
     const QJsonObject objects = root.value("objects").toObject();
-    index.objects.reserve(objects.size());
 
     for (auto iter = objects.begin(); iter != objects.end(); ++iter) {
         const QJsonObject nestedObj = iter.value().toObject();
