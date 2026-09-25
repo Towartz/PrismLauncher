@@ -177,7 +177,16 @@ void ResourcePage::retranslate()
 
 void ResourcePage::openedImpl()
 {
-    initQuickWidget();
+    if (!m_projectMode) {
+        initQuickWidget();
+    } else {
+        if (m_viewStack) {
+            m_viewStack->hide();
+        }
+        if (m_viewModeButton) {
+            m_viewModeButton->hide();
+        }
+    }
 
     m_ui->horizontalLayout->setStretchFactor(m_ui->resourceFilterButton, 0);
     m_ui->horizontalLayout->setStretchFactor(m_ui->searchEdit, 1);
@@ -767,9 +776,13 @@ void ResourcePage::openUrl(QUrl url)
 
 void ResourcePage::openProject(const QVariant& projectID)
 {
+    m_projectMode = true;
+
     m_ui->sortByBox->hide();
     m_ui->searchEdit->hide();
-    m_ui->resourceFilterButton->hide();
+    if (!supportsFiltering()) {
+        m_ui->resourceFilterButton->hide();
+    }
     m_ui->packView->hide();
     if (m_viewStack) {
         m_viewStack->hide();
@@ -997,5 +1010,18 @@ void ResourcePage::cycleViewMode()
         QString modeStr = (m_currentViewMode == ViewMode::Grid) ? "Grid" : ((m_currentViewMode == ViewMode::List) ? "List" : "Classic");
         APPLICATION->settings()->set("ResourceBrowserViewMode", modeStr);
     }
+}
+
+void ResourcePage::reloadCurrentVersions()
+{
+    auto index = m_ui->packView->currentIndex();
+    auto pack = getCurrentPack();
+    if (!index.isValid() || !pack) {
+        return;
+    }
+
+    pack->versionsLoaded = false;
+    pack->versions.clear();
+    m_model->loadEntry(index);
 }
 }  // namespace ResourceDownload

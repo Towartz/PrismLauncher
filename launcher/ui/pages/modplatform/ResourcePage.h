@@ -86,6 +86,8 @@ class ResourcePage : public QWidget, public BasePage {
     auto getDialog() const -> const ResourceDownloadDialog* { return m_parentDialog; }
     auto getModel() const -> ResourceModel* { return m_model; }
 
+    bool inProjectMode() const { return m_projectMode; }
+
    protected:
     ResourcePage(ResourceDownloadDialog* parent,
                  BaseInstance& baseInstance,
@@ -114,6 +116,8 @@ class ResourcePage : public QWidget, public BasePage {
     bool hasSelectedPacks() { return !(m_model->selectedPacks().isEmpty()); }
 
     virtual void openProject(const QVariant& projectID);
+
+    void reloadCurrentVersions();
 
     void setSuppressInitialSearch(bool suppress);
 
@@ -172,6 +176,8 @@ class ResourcePage : public QWidget, public BasePage {
     QTimer m_searchTimer;
 
     bool m_doNotJumpToMod = false;
+
+    bool m_projectMode = false;
 
     QSet<int> m_enableQueue;
 
