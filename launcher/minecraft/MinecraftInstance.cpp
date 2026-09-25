@@ -653,7 +653,7 @@ QStringList MinecraftInstance::javaArguments()
     return args;
 }
 
-QString MinecraftInstance::computeCdsFingerprint() const
+QString MinecraftInstance::computeCdsFingerprint()
 {
     QCryptographicHash hash(QCryptographicHash::Sha256);
 

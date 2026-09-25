@@ -155,7 +155,7 @@ class MinecraftInstance : public BaseInstance {
 
     virtual JavaVersion getJavaVersion();
 
-    QString computeCdsFingerprint() const;
+    QString computeCdsFingerprint();
     QStringList cdsJavaArguments();
 
    protected slots:

@@ -26,18 +26,18 @@ jobs:
     needs: build_release
     permissions:
       contents: write
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: "true"
           path: "PrismLauncher-source"
           fetch-depth: 0
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
       - name: Grab and store version
         run: |
           tag_name=$(echo ${{ github.ref }} | grep -oE "[^/]+$")
@@ -93,34 +93,53 @@ jobs:
 
       - name: Create release
         id: create_release
-        uses: softprops/action-gh-release@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag_name: ${{ github.ref }}
-          name: Prism Launcher ${{ env.VERSION }}
-          draft: false
-          prerelease: false
-          fail_on_unmatched_files: true
-          body: ${{ steps.changelog.outputs.body }}
-          files: |
-            PrismLauncher-Linux-x86_64.AppImage
-            PrismLauncher-Linux-x86_64.AppImage.zsync
-            PrismLauncher-Linux-aarch64.AppImage
-            PrismLauncher-Linux-aarch64.AppImage.zsync
-            PrismLauncher-Linux-Qt6-Portable-${{ env.VERSION }}.tar.gz
-            PrismLauncher-Linux-aarch64-Qt6-Portable-${{ env.VERSION }}.tar.gz
-            PrismLauncher-Windows-MinGW-w64-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MinGW-w64-Portable-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MinGW-w64-Setup-${{ env.VERSION }}.exe
-            PrismLauncher-Windows-MSVC-arm64-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MSVC-arm64-Portable-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MSVC-arm64-Setup-${{ env.VERSION }}.exe
-            PrismLauncher-Windows-MSVC-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MSVC-Portable-${{ env.VERSION }}.zip
-            PrismLauncher-Windows-MSVC-Setup-${{ env.VERSION }}.exe
-            PrismLauncher-macOS-${{ env.VERSION }}.zip
-            PrismLauncher-macOS-${{ env.VERSION }}.dmg
-            PrismLauncher-${{ env.VERSION }}.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BODY: ${{ steps.changelog.outputs.body }}
+        run: |
+          printf "%s" "$RELEASE_BODY" > release_notes.md
+          FILES=(
+            "PrismLauncher-Linux-x86_64.AppImage"
+            "PrismLauncher-Linux-x86_64.AppImage.zsync"
+            "PrismLauncher-Linux-aarch64.AppImage"
+            "PrismLauncher-Linux-aarch64.AppImage.zsync"
+            "PrismLauncher-Linux-Qt6-Portable-${{ env.VERSION }}.tar.gz"
+            "PrismLauncher-Linux-aarch64-Qt6-Portable-${{ env.VERSION }}.tar.gz"
+            "PrismLauncher-Windows-MinGW-w64-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MinGW-w64-Portable-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MinGW-w64-Setup-${{ env.VERSION }}.exe"
+            "PrismLauncher-Windows-MSVC-arm64-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MSVC-arm64-Portable-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MSVC-arm64-Setup-${{ env.VERSION }}.exe"
+            "PrismLauncher-Windows-MSVC-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MSVC-Portable-${{ env.VERSION }}.zip"
+            "PrismLauncher-Windows-MSVC-Setup-${{ env.VERSION }}.exe"
+            "PrismLauncher-macOS-${{ env.VERSION }}.zip"
+            "PrismLauncher-macOS-${{ env.VERSION }}.dmg"
+            "PrismLauncher-${{ env.VERSION }}.tar.gz"
+          )
+          for f in "${FILES[@]}"; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Missing expected release artifact: $f"
+              exit 1
+            fi
+          done
+          if gh release view "${{ env.VERSION }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release edit "${{ env.VERSION }}" \
+              --repo "${{ github.repository }}" \
+              --title "Prism Launcher ${{ env.VERSION }}" \
+              --notes-file release_notes.md \
+              --draft=false \
+              --prerelease=false
+            gh release upload "${{ env.VERSION }}" "${FILES[@]}" --clobber --repo "${{ github.repository }}"
+          else
+            gh release create "${{ env.VERSION }}" "${FILES[@]}" \
+              --repo "${{ github.repository }}" \
+              --title "Prism Launcher ${{ env.VERSION }}" \
+              --notes-file release_notes.md
+          fi
+          UPLOAD_URL=$(gh api "repos/${{ github.repository }}/releases/tags/${{ env.VERSION }}" --jq '.upload_url')
+          echo "upload_url=$UPLOAD_URL" >> "$GITHUB_OUTPUT"
 
       - name: Update releases.json cache
         continue-on-error: true
