@@ -194,6 +194,7 @@ class Application : public QApplication {
 
     void updateIsRunning(bool running);
     bool updatesAreAllowed() const;
+    void setLowPriorityMode(bool lowPriority);
 
     void ShowGlobalSettings(class QWidget* parent, QString openPage = QString());
 
@@ -291,6 +292,7 @@ class Application : public QApplication {
     size_t m_openWindows = 0;
     size_t m_runningInstances = 0;
     bool m_updateRunning = false;
+    bool m_lowPriorityMode = false;
 
     // main window, if any
     MainWindow* m_mainWindow = nullptr;

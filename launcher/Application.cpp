@@ -157,6 +157,10 @@
 #include "updater/PrismExternalUpdater.h"
 #endif
 
+#if defined(Q_OS_UNIX)
+#include <sys/resource.h>
+#endif
+
 #if defined Q_OS_WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -1675,8 +1679,27 @@ void Application::subRunningInstance()
     }
     m_runningInstances--;
     if (m_runningInstances == 0) {
+        setLowPriorityMode(false);
         emit updateAllowedChanged(true);
     }
+}
+
+void Application::setLowPriorityMode(bool lowPriority)
+{
+    if (m_lowPriorityMode == lowPriority) {
+        return;
+    }
+    m_lowPriorityMode = lowPriority;
+
+    if (m_instances) {
+        m_instances->setGameplaySuspension(lowPriority);
+    }
+
+#if defined(Q_OS_WIN32)
+    SetPriorityClass(GetCurrentProcess(), lowPriority ? BELOW_NORMAL_PRIORITY_CLASS : NORMAL_PRIORITY_CLASS);
+#elif defined(Q_OS_UNIX)
+    (void)setpriority(PRIO_PROCESS, 0, lowPriority ? 10 : 0);
+#endif
 }
 
 bool Application::shouldExitNow() const

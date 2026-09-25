@@ -1,8 +1,14 @@
 #include "LogModel.h"
+#include <algorithm>
+#include <utility>
 
 LogModel::LogModel(QObject* parent) : QAbstractListModel(parent)
 {
     m_content.resize(m_maxLines);
+    m_flushTimer.setTimerType(Qt::CoarseTimer);
+    m_flushTimer.setSingleShot(true);
+    m_flushTimer.setInterval(100);
+    connect(&m_flushTimer, &QTimer::timeout, this, &LogModel::flush);
 }
 
 int LogModel::rowCount(const QModelIndex& parent) const
@@ -35,30 +41,87 @@ void LogModel::append(MessageLevel level, QString line)
     if (m_suspended) {
         return;
     }
-    int lineNum = (m_firstLine + m_numLines) % m_maxLines;
-    // overflow
-    if (m_numLines == m_maxLines) {
-        if (m_stopOnOverflow) {
-            // nothing more to do, the buffer is full
+    m_pending.append({ level, std::move(line) });
+    if (m_pending.size() >= 512) {
+        flush();
+    } else if (!m_flushTimer.isActive()) {
+        m_flushTimer.start();
+    }
+}
+
+void LogModel::flush()
+{
+    if (m_pending.isEmpty()) {
+        return;
+    }
+    if (m_flushTimer.isActive()) {
+        m_flushTimer.stop();
+    }
+
+    QList<entry> batch;
+    batch.swap(m_pending);
+
+    if (m_suspended) {
+        return;
+    }
+
+    if (m_stopOnOverflow) {
+        if (m_numLines >= m_maxLines) {
             return;
         }
-        beginRemoveRows(QModelIndex(), 0, 0);
-        m_firstLine = (m_firstLine + 1) % m_maxLines;
-        m_numLines--;
-        endRemoveRows();
-    } else if (m_numLines == m_maxLines - 1 && m_stopOnOverflow) {
-        level = MessageLevel::Warning;
-        line = m_overflowMessage;
+        int available = m_maxLines - m_numLines;
+        int countToInsert = std::min<int>(static_cast<int>(batch.size()), available);
+        if (m_numLines + countToInsert == m_maxLines) {
+            batch[countToInsert - 1].level = MessageLevel::Warning;
+            batch[countToInsert - 1].line = m_overflowMessage;
+        }
+        beginInsertRows(QModelIndex(), m_numLines, m_numLines + countToInsert - 1);
+        for (int i = 0; i < countToInsert; ++i) {
+            int lineNum = (m_firstLine + m_numLines) % m_maxLines;
+            m_content[lineNum] = std::move(batch[i]);
+            m_numLines++;
+        }
+        endInsertRows();
+        return;
     }
-    beginInsertRows(QModelIndex(), m_numLines, m_numLines);
-    m_numLines++;
-    m_content[lineNum].level = level;
-    m_content[lineNum].line = line;
+
+    const int totalNew = static_cast<int>(batch.size());
+    if (totalNew >= m_maxLines) {
+        beginResetModel();
+        int offset = totalNew - m_maxLines;
+        for (int i = 0; i < m_maxLines; ++i) {
+            m_content[i] = std::move(batch[offset + i]);
+        }
+        m_firstLine = 0;
+        m_numLines = m_maxLines;
+        endResetModel();
+        return;
+    }
+
+    if (m_numLines + totalNew > m_maxLines) {
+        int overflow = (m_numLines + totalNew) - m_maxLines;
+        beginRemoveRows(QModelIndex(), 0, overflow - 1);
+        m_firstLine = (m_firstLine + overflow) % m_maxLines;
+        m_numLines -= overflow;
+        endRemoveRows();
+    }
+
+    int firstRow = m_numLines;
+    int lastRow = m_numLines + totalNew - 1;
+    beginInsertRows(QModelIndex(), firstRow, lastRow);
+    for (int i = 0; i < totalNew; ++i) {
+        int lineNum = (m_firstLine + m_numLines) % m_maxLines;
+        m_content[lineNum] = std::move(batch[i]);
+        m_numLines++;
+    }
     endInsertRows();
 }
 
 void LogModel::suspend(bool suspend)
 {
+    if (suspend && !m_suspended) {
+        flush();
+    }
     m_suspended = suspend;
 }
 
@@ -69,6 +132,8 @@ bool LogModel::suspended()
 
 void LogModel::clear()
 {
+    m_flushTimer.stop();
+    m_pending.clear();
     beginResetModel();
     m_firstLine = 0;
     m_numLines = 0;
@@ -77,6 +142,7 @@ void LogModel::clear()
 
 QString LogModel::toPlainText()
 {
+    flush();
     QString out;
     out.reserve(m_numLines * 80);
     for (int i = 0; i < m_numLines; i++) {
@@ -89,6 +155,7 @@ QString LogModel::toPlainText()
 
 void LogModel::setMaxLines(int maxLines)
 {
+    flush();
     // no-op
     if (maxLines == m_maxLines) {
         return;
@@ -164,11 +231,15 @@ bool LogModel::colorLines() const
 
 bool LogModel::isOverFlow()
 {
+    flush();
     return m_numLines >= m_maxLines && m_stopOnOverflow;
 }
 
 MessageLevel LogModel::previousLevel()
 {
+    if (!m_pending.isEmpty()) {
+        return m_pending.last().level;
+    }
     if (m_numLines > 0) {
         return m_content[(m_firstLine + m_numLines - 1) % m_maxLines].level;
     }

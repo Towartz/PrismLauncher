@@ -2,6 +2,7 @@
 
 #include <QAbstractListModel>
 #include <QString>
+#include <QTimer>
 #include "MessageLevel.h"
 
 class LogModel : public QAbstractListModel {
@@ -35,6 +36,9 @@ class LogModel : public QAbstractListModel {
 
     enum Roles { LevelRole = Qt::UserRole };
 
+   public slots:
+    void flush();
+
    private /* types */:
     struct entry {
         MessageLevel level = MessageLevel::Unknown;
@@ -43,6 +47,8 @@ class LogModel : public QAbstractListModel {
 
    private: /* data */
     QList<entry> m_content;
+    QList<entry> m_pending;
+    QTimer m_flushTimer;
     int m_maxLines = 1000;
     // first line in the circular buffer
     int m_firstLine = 0;

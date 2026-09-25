@@ -92,6 +92,8 @@
 #include "tools/BaseProfiler.h"
 
 #include <QActionGroup>
+#include <QCryptographicHash>
+#include <QDirListing>
 #include <QMainWindow>
 #include <QScreen>
 #include <QStandardPaths>
@@ -171,6 +173,7 @@ MinecraftInstance::MinecraftInstance(SettingsObject* globalSettings, std::unique
     : BaseInstance(globalSettings, std::move(settings), rootDir)
 {
     m_components.reset(new PackProfile(this));
+    connect(this, &BaseInstance::runningStatusChanged, this, &MinecraftInstance::setBackgroundWatchersSuspended);
 }
 
 MinecraftInstance::~MinecraftInstance() {}
@@ -645,7 +648,146 @@ QStringList MinecraftInstance::javaArguments()
         // allow reflective access to java.net - required by the skin fix
         args << "--add-opens" << "java.base/java.net=ALL-UNNAMED";
 
+    args.append(cdsJavaArguments());
+
     return args;
+}
+
+QString MinecraftInstance::computeCdsFingerprint() const
+{
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+
+    hash.addData(settings()->get("JavaVersion").toString().toUtf8());
+    hash.addData("|");
+    hash.addData(settings()->get("JavaPath").toString().toUtf8());
+    hash.addData("|");
+    hash.addData(settings()->get("JavaArchitecture").toString().toUtf8());
+    hash.addData("|");
+    hash.addData(QByteArray::number(settings()->get("MaxMemAlloc").toInt()));
+    hash.addData("|");
+
+    if (m_components) {
+        hash.addData(m_components->componentsFingerprint().toUtf8());
+    }
+    hash.addData("|");
+
+    auto scanJarFolder = [&hash](const QString& folderPath) {
+        QDir dir(folderPath);
+        if (!dir.exists()) {
+            return;
+        }
+        QStringList entries;
+        for (const auto& entry : QDirListing(folderPath, QDirListing::IteratorFlag::FilesOnly | QDirListing::IteratorFlag::ResolveSymlinks)) {
+            const QString fileName = entry.fileName();
+            if (fileName.endsWith(QLatin1String(".disabled"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            if (!fileName.endsWith(QLatin1String(".jar"), Qt::CaseInsensitive) &&
+                !fileName.endsWith(QLatin1String(".zip"), Qt::CaseInsensitive) &&
+                !fileName.endsWith(QLatin1String(".litemod"), Qt::CaseInsensitive)) {
+                continue;
+            }
+            const auto info = entry.fileInfo();
+            entries.append(QStringLiteral("%1:%2:%3")
+                               .arg(fileName)
+                               .arg(info.lastModified().toMSecsSinceEpoch())
+                               .arg(info.size()));
+        }
+        entries.sort(Qt::CaseSensitive);
+        for (const auto& item : entries) {
+            hash.addData(item.toUtf8());
+            hash.addData(";");
+        }
+    };
+
+    scanJarFolder(modsRoot());
+    scanJarFolder(coreModsDir());
+    scanJarFolder(jarModsDir());
+
+    return QString::fromLatin1(hash.result().toHex());
+}
+
+QStringList MinecraftInstance::cdsJavaArguments()
+{
+    JavaVersion javaVersion = getJavaVersion();
+    // Dynamic AppCDS (-XX:ArchiveClassesAtExit / -XX:SharedArchiveFile) requires Java 13+
+    if (javaVersion.major() < 13) {
+        return {};
+    }
+
+    // Respect user-supplied CDS flags in JvmArgs
+    const QStringList userArgs = extraArguments();
+    for (const auto& arg : userArgs) {
+        if (arg.startsWith(QLatin1String("-XX:SharedArchiveFile")) ||
+            arg.startsWith(QLatin1String("-XX:ArchiveClassesAtExit")) ||
+            arg.startsWith(QLatin1String("-Xshare:"))) {
+            return {};
+        }
+    }
+
+    const QString cacheDir = FS::PathCombine(instanceRoot(), "cache");
+    if (!FS::ensureFolderPathExists(cacheDir)) {
+        return {};
+    }
+
+    const QString cdsFilePath = QDir::toNativeSeparators(QFileInfo(FS::PathCombine(cacheDir, "cds.jsa")).absoluteFilePath());
+    const QString hashFilePath = FS::PathCombine(cacheDir, "cds.sha256");
+    const QString currentHash = computeCdsFingerprint();
+
+    QString storedHash;
+    if (QFileInfo::exists(hashFilePath)) {
+        if (auto res = FS::read(hashFilePath)) {
+            storedHash = QString::fromUtf8(res.value()).trimmed();
+        }
+    }
+
+    const QFileInfo cdsInfo(cdsFilePath);
+    if (storedHash == currentHash && cdsInfo.exists() && cdsInfo.size() > 0) {
+        return { QStringLiteral("-Xshare:auto"), QStringLiteral("-XX:SharedArchiveFile=") + cdsFilePath };
+    }
+
+    if (cdsInfo.exists()) {
+        QFile::remove(cdsFilePath);
+    }
+    if (storedHash != currentHash) {
+        if (auto res = FS::write(hashFilePath, currentHash.toUtf8()); !res) {
+            qWarning() << "Failed to write AppCDS hash file:" << res.error();
+        }
+    }
+
+    return { QStringLiteral("-Xshare:auto"), QStringLiteral("-XX:ArchiveClassesAtExit=") + cdsFilePath };
+}
+
+void MinecraftInstance::setBackgroundWatchersSuspended(bool suspended)
+{
+    if (suspended) {
+        m_suspendedResourceModels.clear();
+        ResourceFolderModel* models[] = { m_loader_mod_list.get(),    m_core_mod_list.get(),    m_nil_mod_list.get(),
+                                          m_resource_pack_list.get(), m_shader_pack_list.get(), m_texture_pack_list.get(),
+                                          m_data_pack_list.get() };
+        for (auto* model : models) {
+            if (model && model->stopWatching()) {
+                m_suspendedResourceModels.append(model);
+            }
+        }
+        if (m_world_list && m_world_list->isWatching()) {
+            m_world_list->stopWatching();
+            m_worldListWasWatching = true;
+        } else {
+            m_worldListWasWatching = false;
+        }
+    } else {
+        for (auto* model : m_suspendedResourceModels) {
+            if (model) {
+                model->startWatching();
+            }
+        }
+        m_suspendedResourceModels.clear();
+        if (m_worldListWasWatching && m_world_list) {
+            m_world_list->startWatching();
+            m_worldListWasWatching = false;
+        }
+    }
 }
 
 QString MinecraftInstance::getLauncher()

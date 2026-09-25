@@ -154,6 +154,8 @@ class PackProfile : public QAbstractListModel {
 
     bool updateLatestMinecraft(bool onlyRelease = true);
 
+    QString componentsFingerprint() const;
+
    private:
     void scheduleSave();
     bool saveIsScheduled() const;

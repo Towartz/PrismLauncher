@@ -29,9 +29,14 @@ class LogView : public QPlainTextEdit {
     void modelDestroyed(QObject* model);
 
    protected:
+    void showEvent(QShowEvent* event) override;
+    void changeEvent(QEvent* event) override;
+    bool isViewActive() const;
+
     QAbstractItemModel* m_model = nullptr;
     QTextCharFormat* m_defaultFormat = nullptr;
     bool m_scroll = false;
     bool m_scrolling = false;
     bool m_colorLines = true;
+    bool m_needsRepopulate = false;
 };

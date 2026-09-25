@@ -1099,3 +1099,16 @@ bool PackProfile::updateLatestMinecraft(bool onlyRelease)
     }
     return oldVersion != latest->descriptor();
 }
+
+QString PackProfile::componentsFingerprint() const
+{
+    QStringList parts;
+    parts.reserve(d->components.size());
+    for (const auto& comp : d->components) {
+        if (!comp) {
+            continue;
+        }
+        parts.append(QStringLiteral("%1:%2:%3").arg(comp->getID(), comp->getVersion(), comp->isEnabled() ? QStringLiteral("1") : QStringLiteral("0")));
+    }
+    return parts.join(';');
+}

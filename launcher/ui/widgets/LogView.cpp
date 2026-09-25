@@ -103,6 +103,7 @@ void LogView::modelDestroyed(QObject* model)
 
 void LogView::repopulate()
 {
+    m_needsRepopulate = false;
     auto* doc = document();
     doc->clear();
     if (!m_model) {
@@ -117,7 +118,40 @@ void LogView::repopulate()
     }
     int count = m_model->rowCount();
     if (count > 0) {
+        if (!isViewActive()) {
+            m_needsRepopulate = true;
+            return;
+        }
         rowsInserted(QModelIndex(), 0, count - 1);
+    }
+}
+
+bool LogView::isViewActive() const
+{
+    if (!isVisible()) {
+        return false;
+    }
+    if (const QWidget* win = window(); win && win->isMinimized()) {
+        return false;
+    }
+    return true;
+}
+
+void LogView::showEvent(QShowEvent* event)
+{
+    QPlainTextEdit::showEvent(event);
+    if (m_needsRepopulate && isViewActive()) {
+        repopulate();
+        scrollToBottom();
+    }
+}
+
+void LogView::changeEvent(QEvent* event)
+{
+    QPlainTextEdit::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange && m_needsRepopulate && isViewActive()) {
+        repopulate();
+        scrollToBottom();
     }
 }
 
@@ -126,6 +160,10 @@ void LogView::rowsAboutToBeInserted(const QModelIndex& parent, int first, int la
     Q_UNUSED(parent)
     Q_UNUSED(first)
     Q_UNUSED(last)
+    if (!isViewActive()) {
+        m_needsRepopulate = true;
+        return;
+    }
     QScrollBar* bar = verticalScrollBar();
     int max_bar = bar->maximum();
     int val_bar = bar->value();
@@ -139,6 +177,10 @@ void LogView::rowsAboutToBeInserted(const QModelIndex& parent, int first, int la
 void LogView::rowsInserted(const QModelIndex& parent, int first, int last)
 {
     if (!m_model || first > last) {
+        return;
+    }
+    if (!isViewActive()) {
+        m_needsRepopulate = true;
         return;
     }
 

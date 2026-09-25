@@ -649,6 +649,25 @@ void InstanceList::suspendWatch()
     m_watchLevel--;
 }
 
+void InstanceList::setGameplaySuspension(bool suspended)
+{
+    if (m_gameplaySuspended == suspended) {
+        return;
+    }
+    m_gameplaySuspended = suspended;
+    if (suspended) {
+        if (!m_instDirs.isEmpty()) {
+            m_watcher->removePaths(m_instDirs);
+        }
+        suspendWatch();
+    } else {
+        if (!m_instDirs.isEmpty()) {
+            m_watcher->addPaths(m_instDirs);
+        }
+        resumeWatch();
+    }
+}
+
 void InstanceList::providerUpdated()
 {
     m_dirty = true;

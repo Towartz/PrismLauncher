@@ -155,6 +155,8 @@ class InstanceList : public QAbstractListModel {
     QString primaryDir() const { return m_instDirs.isEmpty() ? QString() : m_instDirs.first(); }
     const QStringList& instanceDirs() const { return m_instDirs; }
 
+    void setGameplaySuspension(bool suspended);
+
    signals:
     void dataIsInvalid();
     void instancesChanged();
@@ -187,6 +189,7 @@ class InstanceList : public QAbstractListModel {
    private:
     int m_watchLevel = 0;
     bool m_dirty = false;
+    bool m_gameplaySuspended = false;
     std::vector<std::unique_ptr<MinecraftInstance>> m_instances;
     // id -> refs
     QMap<QString, int> m_groupNameCache;

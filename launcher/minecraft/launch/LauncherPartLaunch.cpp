@@ -152,6 +152,10 @@ void LauncherPartLaunch::executeTask()
 
     qDebug() << args.join(' ');
 
+    if (APPLICATION_DYN) {
+        APPLICATION->setLowPriorityMode(false);
+    }
+
     QString wrapperCommandStr = instance->getWrapperCommand().trimmed();
     if (!wrapperCommandStr.isEmpty()) {
         auto wrapperArgs = m_parent->substituteVariables(wrapperCommandStr);
@@ -226,6 +230,9 @@ void LauncherPartLaunch::on_state(LoggedProcess::State state)
         case LoggedProcess::Running:
             emit logLine(QString("Minecraft process ID: %1\n\n").arg(m_process.processId()), MessageLevel::Launcher);
             m_parent->setPid(m_process.processId());
+            if (APPLICATION_DYN) {
+                APPLICATION->setLowPriorityMode(true);
+            }
             if (APPLICATION->discordRPC()) {
                 const QString initialServer = (m_targetToJoin && !m_targetToJoin->address.isEmpty()) ? m_targetToJoin->address : QString();
                 APPLICATION->discordRPC()->setActivityForInstance(m_parent->instance(), m_process.processId(), initialServer);

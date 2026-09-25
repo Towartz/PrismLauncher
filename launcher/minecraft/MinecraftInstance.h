@@ -155,6 +155,12 @@ class MinecraftInstance : public BaseInstance {
 
     virtual JavaVersion getJavaVersion();
 
+    QString computeCdsFingerprint() const;
+    QStringList cdsJavaArguments();
+
+   protected slots:
+    void setBackgroundWatchersSuspended(bool suspended);
+
    protected:
     QMap<QString, QString> createCensorFilterFromSession(AuthSessionPtr session);
     QMap<QString, QString> makeProfileVarMapping(std::shared_ptr<LaunchProfile> profile) const;
@@ -169,4 +175,6 @@ class MinecraftInstance : public BaseInstance {
     std::unique_ptr<TexturePackFolderModel> m_texture_pack_list;
     std::unique_ptr<DataPackFolderModel> m_data_pack_list;
     std::unique_ptr<WorldList> m_world_list;
+    QList<ResourceFolderModel*> m_suspendedResourceModels;
+    bool m_worldListWasWatching = false;
 };

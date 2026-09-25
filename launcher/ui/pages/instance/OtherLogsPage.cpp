@@ -93,6 +93,17 @@ OtherLogsPage::OtherLogsPage(QString id, QString displayName, QString helpPage, 
 
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &OtherLogsPage::populateSelectLogBox);
 
+    if (m_instance) {
+        connect(m_instance, &BaseInstance::runningStatusChanged, this, [this](bool running) {
+            if (running && !isVisible()) {
+                m_watcher.removePaths(m_logSearchPaths);
+            } else if (!running && isVisible()) {
+                m_watcher.addPaths(m_logSearchPaths);
+                populateSelectLogBox();
+            }
+        });
+    }
+
     auto findShortcut = new QShortcut(QKeySequence(QKeySequence::Find), this);
     connect(findShortcut, &QShortcut::activated, this, &OtherLogsPage::findActivated);
 

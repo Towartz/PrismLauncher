@@ -95,6 +95,7 @@ class WorldList : public QAbstractListModel {
 
     void startWatching();
     void stopWatching();
+    bool isWatching() const { return m_isWatching; }
 
     virtual bool isValid();
 
