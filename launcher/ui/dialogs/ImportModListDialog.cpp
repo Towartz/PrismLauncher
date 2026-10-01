@@ -628,7 +628,7 @@ void ImportModListDialog::downloadSelectedMods()
     if (m_resolveDepsCheck->isChecked() && !depCandidates.isEmpty() && m_instance && m_model) {
         GetModDependenciesTask depTask(m_instance, m_model, depCandidates);
         ProgressDialog depDialog(this);
-        depDialog.setSkipButton(true, tr("Skip Dependencies"));
+        depDialog.showSkipButton(tr("Skip Dependencies"));
         if (depDialog.execWithTask(&depTask) == QDialog::Accepted) {
             resolvedDeps = depTask.getDependecies();
         }
@@ -670,7 +670,7 @@ void ImportModListDialog::downloadSelectedMods()
     }
 
     ProgressDialog loadDialog(this);
-    loadDialog.setSkipButton(true, tr("Abort"));
+    loadDialog.showSkipButton();
     loadDialog.execWithTask(&downloadTasks);
 
     // Apply .disabled state for mods that were exported as disabled
