@@ -177,12 +177,12 @@ class ModrinthAPI final : public ResourceAPI {
         getArguments.append(QString("offset=%1").arg(args.offset));
         getArguments.append(QString("limit=25"));
         if (args.search.has_value()) {
-            getArguments.append(QString("query=%1").arg(args.search.value()));
+            getArguments.append(QString("query=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(args.search.value()))));
         }
         if (args.sorting.has_value()) {
             getArguments.append(QString("index=%1").arg(args.sorting.value().name));
         }
-        getArguments.append(QString("facets=%1").arg(createFacets(args)));
+        getArguments.append(QString("facets=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(createFacets(args)))));
 
         return BuildConfig.MODRINTH_PROD_URL + "/search?" + getArguments.join('&');
     };
@@ -196,10 +196,10 @@ class ModrinthAPI final : public ResourceAPI {
     {
         QStringList getArguments;
         if (args.mcVersions.has_value()) {
-            getArguments.append(QString("game_versions=[%1]").arg(getGameVersionsString(args.mcVersions.value())));
+            getArguments.append(QString("game_versions=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(QString("[%1]").arg(getGameVersionsString(args.mcVersions.value()))))));
         }
         if (args.loaders.has_value()) {
-            getArguments.append(QString("loaders=[\"%1\"]").arg(getModLoaderStrings(args.loaders.value()).join("\",\"")));
+            getArguments.append(QString("loaders=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(QString("[\"%1\"]").arg(getModLoaderStrings(args.loaders.value()).join("\",\""))))));
         }
         getArguments.append(QString("include_changelog=%1").arg(args.includeChangelog ? "true" : "false"));
 
@@ -228,11 +228,11 @@ class ModrinthAPI final : public ResourceAPI {
     {
         return args.dependency.version.length() != 0
                    ? QString("%1/version/%2").arg(BuildConfig.MODRINTH_PROD_URL, args.dependency.version)
-                   : QString(R"(%1/project/%2/version?game_versions=["%3"]&loaders=["%4"]&include_changelog=%5)")
+                   : QString(R"(%1/project/%2/version?game_versions=%3&loaders=%4&include_changelog=%5)")
                          .arg(BuildConfig.MODRINTH_PROD_URL)
                          .arg(args.dependency.addonId.toString())
-                         .arg(mapMCVersionToModrinth(args.mcVersion))
-                         .arg(getModLoaderStrings(args.loader).join("\",\""))
+                         .arg(QString::fromUtf8(QUrl::toPercentEncoding(QString("[\"%1\"]").arg(mapMCVersionToModrinth(args.mcVersion)))))
+                         .arg(QString::fromUtf8(QUrl::toPercentEncoding(QString("[\"%1\"]").arg(getModLoaderStrings(args.loader).join("\",\"")))))
                          .arg(args.includeChangelog ? "true" : "false");
     };
 

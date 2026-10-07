@@ -63,6 +63,9 @@ ModrinthPage::ModrinthPage(NewInstanceDialog* dialog, QWidget* parent)
     createFilterWidget();
 
     m_ui->packView->setModel(m_model);
+    connect(m_model, &Modrinth::ModpackListModel::searchJobStarted, this, [this](Task* job) {
+        m_fetchProgress.watch(job);
+    });
 
     m_ui->versionSelectionBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_ui->versionSelectionBox->view()->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);

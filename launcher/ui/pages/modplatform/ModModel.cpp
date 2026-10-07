@@ -146,7 +146,7 @@ ResourceAPI::VersionSearchArgs ModModel::createVersionsArguments(const QModelInd
 
 void ModModel::searchWithTerm(const QString& term, unsigned int sort, bool filterChanged)
 {
-    if (m_searchTerm == term && m_searchTerm.isNull() == term.isNull() && m_currentSortIndex == sort && !filterChanged) {
+    if (m_searchTerm == term && m_searchTerm.isNull() == term.isNull() && m_currentSortIndex == sort && !filterChanged && !m_packs.isEmpty()) {
         return;
     }
 

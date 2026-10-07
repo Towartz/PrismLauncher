@@ -83,6 +83,9 @@ class ModpackListModel : public QAbstractListModel {
         return parent.isValid() ? false : m_searchState == CanPossiblyFetchMore;
     };
 
+   signals:
+    void searchJobStarted(Task* job);
+
    public slots:
     void searchRequestFinished(QList<ModPlatform::IndexedPack::Ptr>& newList);
     void searchRequestFailed(const QString& reason, int networkErrorCode);

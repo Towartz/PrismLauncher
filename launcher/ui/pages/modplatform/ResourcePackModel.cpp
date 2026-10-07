@@ -42,7 +42,7 @@ ResourceAPI::VersionSearchArgs ResourcePackResourceModel::createVersionsArgument
 
 void ResourcePackResourceModel::searchWithTerm(const QString& term, unsigned int sort)
 {
-    if (m_searchTerm == term && m_searchTerm.isNull() == term.isNull() && m_currentSortIndex == sort) {
+    if (m_searchTerm == term && m_searchTerm.isNull() == term.isNull() && m_currentSortIndex == sort && !m_packs.isEmpty()) {
         return;
     }
 

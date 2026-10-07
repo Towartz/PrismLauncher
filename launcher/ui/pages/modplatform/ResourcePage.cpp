@@ -210,6 +210,9 @@ void ResourcePage::openedImpl()
 
     if (m_model) {
         connect(m_model, &QAbstractItemModel::rowsInserted, this, &ResourcePage::onRowsInserted, Qt::UniqueConnection);
+        connect(m_model, &ResourceModel::searchJobStarted, this, [this](Task* job) {
+            m_fetchProgress.watch(job);
+        }, Qt::UniqueConnection);
     }
 
     auto currentPack = getCurrentPack();

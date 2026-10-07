@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QList>
+#include <QUrl>
 #include <cstdint>
 #include "BuildConfig.h"
 #include "Version.h"
@@ -102,7 +103,7 @@ class FlameAPI final : public ResourceAPI {
         getArguments.append(QString("index=%1").arg(args.offset));
         getArguments.append("pageSize=25");
         if (args.search.has_value()) {
-            getArguments.append(QString("searchFilter=%1").arg(args.search.value()));
+            getArguments.append(QString("searchFilter=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(args.search.value()))));
         }
         if (args.sorting.has_value()) {
             getArguments.append(QString("sortField=%1").arg(args.sorting.value().index));
@@ -112,7 +113,7 @@ class FlameAPI final : public ResourceAPI {
             ModPlatform::ModLoaderTypes loaders = args.loaders.value();
             loaders &= ~static_cast<std::uint16_t>(ModPlatform::ModLoaderType::DataPack);
             if (loaders != 0) {
-                getArguments.append(QString("modLoaderTypes=%1").arg(getModLoaderFilters(loaders)));
+                getArguments.append(QString("modLoaderTypes=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(getModLoaderFilters(loaders)))));
             }
         }
         if (args.categoryIds.has_value() && !args.categoryIds->empty()) {
@@ -120,7 +121,7 @@ class FlameAPI final : public ResourceAPI {
         }
 
         if (args.versions.has_value() && !args.versions.value().empty()) {
-            getArguments.append(QString("gameVersion=%1").arg(args.versions.value().front().toString()));
+            getArguments.append(QString("gameVersion=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(args.versions.value().front().toString()))));
         }
 
         return BuildConfig.FLAME_BASE_URL + "/mods/search?gameId=432&" + getArguments.join('&');
@@ -132,7 +133,7 @@ class FlameAPI final : public ResourceAPI {
         QString url = QString(BuildConfig.FLAME_BASE_URL + "/mods/%1/files?pageSize=10000").arg(addonId);
 
         if (args.mcVersions.has_value()) {
-            url += QString("&gameVersion=%1").arg(args.mcVersions.value().front().toString());
+            url += QString("&gameVersion=%1").arg(QString::fromUtf8(QUrl::toPercentEncoding(args.mcVersions.value().front().toString())));
         }
 
         if (args.loaders.has_value() && args.loaders.value() != ModPlatform::ModLoaderType::DataPack &&

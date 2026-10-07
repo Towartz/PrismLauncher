@@ -336,20 +336,13 @@ void ResourceModel::loadEntry(const QModelIndex& entry)
 
 void ResourceModel::refresh()
 {
-    bool resetRequested = false;
-
     if (hasActiveInfoJob()) {
         m_currentInfoJob.abort();
-        resetRequested = true;
     }
 
     if (hasActiveSearchJob()) {
-        m_currentSearchJob->abort();
-        resetRequested = true;
-    }
-
-    if (resetRequested) {
         m_searchState = SearchState::ResetRequested;
+        m_currentSearchJob->abort();
         return;
     }
 
@@ -370,6 +363,7 @@ void ResourceModel::clearData()
 void ResourceModel::runSearchJob(const Task::Ptr& ptr)
 {
     m_currentSearchJob.reset(ptr);  // clean up first
+    emit searchJobStarted(m_currentSearchJob.get());
     m_currentSearchJob->start();
 }
 void ResourceModel::runInfoJob(Task::Ptr ptr)
@@ -453,6 +447,14 @@ std::optional<QIcon> ResourceModel::getIcon(const QModelIndex& index, const QUrl
 
 void ResourceModel::searchRequestSucceeded(QList<ModPlatform::IndexedPack::Ptr>& newList)
 {
+    if (m_searchState == SearchState::ResetRequested) {
+        m_searchState = SearchState::None;
+        clearData();
+        m_nextSearchOffset = 0;
+        search();
+        return;
+    }
+
     QList<ModPlatform::IndexedPack::Ptr> filteredNewList;
     for (auto pack : newList) {
         ModPlatform::IndexedPack::Ptr p;
@@ -490,6 +492,14 @@ void ResourceModel::searchRequestSucceeded(QList<ModPlatform::IndexedPack::Ptr>&
 
 void ResourceModel::searchRequestForOneSucceeded(const ModPlatform::IndexedPack::Ptr& pack)
 {
+    if (m_searchState == SearchState::ResetRequested) {
+        m_searchState = SearchState::None;
+        clearData();
+        m_nextSearchOffset = 0;
+        search();
+        return;
+    }
+
     m_searchState = SearchState::Finished;
 
     beginInsertRows(QModelIndex(), static_cast<int>(m_packs.size()), static_cast<int>(m_packs.size() + 1));
@@ -499,6 +509,14 @@ void ResourceModel::searchRequestForOneSucceeded(const ModPlatform::IndexedPack:
 
 void ResourceModel::searchRequestFailed([[maybe_unused]] const QString& reason, int networkErrorCode)
 {
+    if (m_searchState == SearchState::ResetRequested) {
+        m_searchState = SearchState::None;
+        clearData();
+        m_nextSearchOffset = 0;
+        search();
+        return;
+    }
+
     switch (networkErrorCode) {
         default:
             // Network error
@@ -514,27 +532,17 @@ void ResourceModel::searchRequestFailed([[maybe_unused]] const QString& reason, 
             break;
     }
 
-    if (m_searchState == SearchState::ResetRequested) {
-        clearData();
-
-        m_nextSearchOffset = 0;
-        search();
-    } else {
-        m_searchState = SearchState::Finished;
-    }
+    m_searchState = SearchState::Finished;
 }
 
 void ResourceModel::searchRequestAborted()
 {
-    if (m_searchState != SearchState::ResetRequested) {
-        qCritical() << "Search task in" << debugName() << "aborted by an unknown reason!";
+    if (m_searchState == SearchState::ResetRequested) {
+        m_searchState = SearchState::None;
+        clearData();
+        m_nextSearchOffset = 0;
+        search();
     }
-
-    // Retry fetching
-    clearData();
-
-    m_nextSearchOffset = 0;
-    search();
 }
 
 void ResourceModel::versionRequestSucceeded(QVector<ModPlatform::IndexedVersion>& doc, const QVariant& pack, const QModelIndex& index)

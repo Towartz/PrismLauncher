@@ -56,6 +56,9 @@ FlamePage::FlamePage(NewInstanceDialog* dialog, QWidget* parent)
     m_ui->setupUi(this);
 
     m_ui->packView->setModel(m_listModel);
+    connect(m_listModel, &Flame::ListModel::searchJobStarted, this, [this](Task* job) {
+        m_fetchProgress.watch(job);
+    });
 
     m_ui->versionSelectionBox->view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     m_ui->versionSelectionBox->view()->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);

@@ -219,20 +219,21 @@ void ListModel::performPaginatedSearch()
         std::move(callbacks));
 
     m_jobPtr = netJob;
+    emit searchJobStarted(m_jobPtr.get());
     m_jobPtr->start();
 }
 
 void ListModel::searchWithTerm(const QString& term, int sort, std::shared_ptr<ModFilterWidget::Filter> filter, bool filterChanged)
 {
-    if (m_currentSearchTerm == term && m_currentSearchTerm.isNull() == term.isNull() && m_currentSort == sort && !filterChanged) {
+    if (m_currentSearchTerm == term && m_currentSearchTerm.isNull() == term.isNull() && m_currentSort == sort && !filterChanged && !m_modpacks.isEmpty()) {
         return;
     }
     m_currentSearchTerm = term;
     m_currentSort = sort;
     m_filter = filter;
     if (hasActiveSearchJob()) {
-        m_jobPtr->abort();
         m_searchState = ResetRequested;
+        m_jobPtr->abort();
         return;
     }
     beginResetModel();
@@ -246,8 +247,17 @@ void ListModel::searchWithTerm(const QString& term, int sort, std::shared_ptr<Mo
 
 void Flame::ListModel::searchRequestFinished(QList<ModPlatform::IndexedPack::Ptr>& newList)
 {
-    if (hasActiveSearchJob())
+    m_jobPtr.reset();
+
+    if (m_searchState == ResetRequested) {
+        m_searchState = None;
+        beginResetModel();
+        m_modpacks.clear();
+        endResetModel();
+        m_nextSearchOffset = 0;
+        performPaginatedSearch();
         return;
+    }
 
     if (newList.size() < 25) {
         m_searchState = Finished;
@@ -269,6 +279,16 @@ void Flame::ListModel::searchRequestForOneSucceeded(ModPlatform::IndexedPack::Pt
 {
     m_jobPtr.reset();
 
+    if (m_searchState == ResetRequested) {
+        m_searchState = None;
+        beginResetModel();
+        m_modpacks.clear();
+        endResetModel();
+        m_nextSearchOffset = 0;
+        performPaginatedSearch();
+        return;
+    }
+
     beginInsertRows(QModelIndex(), m_modpacks.size(), m_modpacks.size() + 1);
     m_modpacks.append(pack);
     endInsertRows();
@@ -279,6 +299,7 @@ void Flame::ListModel::searchRequestFailed(const QString& reason)
     m_jobPtr.reset();
 
     if (m_searchState == ResetRequested) {
+        m_searchState = None;
         beginResetModel();
         m_modpacks.clear();
         endResetModel();

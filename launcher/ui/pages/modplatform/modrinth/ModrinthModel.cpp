@@ -220,14 +220,15 @@ void ModpackListModel::performPaginatedSearch()
         callbacks);
 
     m_jobPtr = netJob;
+    emit searchJobStarted(m_jobPtr.get());
     m_jobPtr->start();
 }
 
 void ModpackListModel::refresh()
 {
     if (hasActiveSearchJob()) {
-        m_jobPtr->abort();
         m_searchState = ResetRequested;
+        m_jobPtr->abort();
         return;
     }
 
@@ -251,7 +252,7 @@ void ModpackListModel::searchWithTerm(const QString& term,
 
     auto sortStr = sortFromIndex(sort);
 
-    if (m_currentSearchTerm == term && m_currentSearchTerm.isNull() == term.isNull() && m_currentSort == sortStr && !filterChanged) {
+    if (m_currentSearchTerm == term && m_currentSearchTerm.isNull() == term.isNull() && m_currentSort == sortStr && !filterChanged && !m_modpacks.isEmpty()) {
         return;
     }
 
@@ -323,6 +324,17 @@ void ModpackListModel::searchRequestFinished(QList<ModPlatform::IndexedPack::Ptr
 {
     m_jobPtr.reset();
 
+    if (m_searchState == ResetRequested) {
+        m_searchState = None;
+        beginResetModel();
+        m_modpacks.clear();
+        endResetModel();
+
+        m_nextSearchOffset = 0;
+        performPaginatedSearch();
+        return;
+    }
+
     if (newList.size() < m_modpacksPerPage) {
         m_searchState = Finished;
     } else {
@@ -343,6 +355,17 @@ void ModpackListModel::searchRequestFinished(QList<ModPlatform::IndexedPack::Ptr
 void ModpackListModel::searchRequestForOneSucceeded(ModPlatform::IndexedPack::Ptr pack)
 {
     m_jobPtr.reset();
+
+    if (m_searchState == ResetRequested) {
+        m_searchState = None;
+        beginResetModel();
+        m_modpacks.clear();
+        endResetModel();
+
+        m_nextSearchOffset = 0;
+        performPaginatedSearch();
+        return;
+    }
 
     beginInsertRows(QModelIndex(), static_cast<int>(m_modpacks.size()), static_cast<int>(m_modpacks.size() + 1));
     m_modpacks.append(pack);
@@ -365,6 +388,7 @@ void ModpackListModel::searchRequestFailed(const QString& /*reason*/, int networ
     m_jobPtr.reset();
 
     if (m_searchState == ResetRequested) {
+        m_searchState = None;
         beginResetModel();
         m_modpacks.clear();
         endResetModel();

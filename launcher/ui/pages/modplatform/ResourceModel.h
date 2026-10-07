@@ -154,6 +154,7 @@ class ResourceModel : public QAbstractListModel {
    signals:
     void versionListUpdated(const QModelIndex& index);
     void projectInfoUpdated(const QModelIndex& index);
+    void searchJobStarted(Task* job);
 };
 
 }  // namespace ResourceDownload
