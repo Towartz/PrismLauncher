@@ -18,7 +18,7 @@
 #include "ui/pages/modplatform/ResourceModel.h"
 #include "ui/widgets/ModFilterWidget.h"
 
-class Version;
+#include "Version.h"
 
 namespace ResourceDownload {
 
@@ -37,6 +37,9 @@ class ModModel : public ResourceModel {
     [[nodiscard]] QString debugName() const override { return m_debugName; }
     [[nodiscard]] QString metaEntryBase() const override { return m_metaEntryBase; }
 
+    [[nodiscard]] std::optional<Version> queryVersion() const { return m_queryVersion; }
+    [[nodiscard]] QString cleanedSearchTerm() const { return m_cleanedSearchTerm; }
+
    public slots:
     ResourceAPI::SearchArgs createSearchArguments() override;
     ResourceAPI::VersionSearchArgs createVersionsArguments(const QModelIndex& index) override;
@@ -51,6 +54,12 @@ class ModModel : public ResourceModel {
     std::shared_ptr<ModFilterWidget::Filter> m_filter = nullptr;
 
    private:
+    void parseSearchQuery(const QString& query);
+
+    std::optional<Version> m_queryVersion;
+    QString m_cleanedSearchTerm;
+    QString m_lastParsedTerm;
+
     QString m_debugName;
     QString m_metaEntryBase;
 };

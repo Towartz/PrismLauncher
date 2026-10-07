@@ -1,6 +1,7 @@
 #include "FlameModIndex.h"
 
 #include <algorithm>
+#include <QRegularExpression>
 
 #include "FileSystem.h"
 #include "Json.h"
@@ -51,30 +52,37 @@ Result<ModPlatform::IndexedVersion> FlameMod::loadIndexedPackVersion(const QJson
     TRY_INTO(const auto& versionArray, Json::requireArray(obj, "gameVersions"))
 
     ModPlatform::IndexedVersion file;
+    file.side = ModPlatform::SideType::NoSide;
+
+    static const QStringList nonVersionTokens = {
+        "neoforge", "forge", "cauldron", "liteloader", "fabric", "quilt", "client", "server"
+    };
+    static const QRegularExpression javaRegex(R"(^java\s*\d*)", QRegularExpression::CaseInsensitiveOption);
+
     for (auto mcVer : versionArray) {
         auto str = mcVer.toString();
+        auto lower = str.toLower();
 
-        if (str.contains('.')) {
+        if (!nonVersionTokens.contains(lower) && !javaRegex.match(str).hasMatch()) {
             file.mcVersion.append(str);
         }
 
-        file.side = ModPlatform::SideType::NoSide;
-        if (auto loader = str.toLower(); loader == "neoforge") {
+        if (lower == "neoforge") {
             file.loaders |= ModPlatform::NeoForge;
-        } else if (loader == "forge") {
+        } else if (lower == "forge") {
             file.loaders |= ModPlatform::Forge;
-        } else if (loader == "cauldron") {
+        } else if (lower == "cauldron") {
             file.loaders |= ModPlatform::Cauldron;
-        } else if (loader == "liteloader") {
+        } else if (lower == "liteloader") {
             file.loaders |= ModPlatform::LiteLoader;
-        } else if (loader == "fabric") {
+        } else if (lower == "fabric") {
             file.loaders |= ModPlatform::Fabric;
-        } else if (loader == "quilt") {
+        } else if (lower == "quilt") {
             file.loaders |= ModPlatform::Quilt;
-        } else if (loader == "server" || loader == "client") {
-            if (!file.side.isValid()) {
-                file.side = ModPlatform::SideType::fromString(loader);
-            } else if (file.side != ModPlatform::SideType::fromString(loader)) {
+        } else if (lower == "server" || lower == "client") {
+            if (!file.side.isValid() || file.side == ModPlatform::SideType::NoSide) {
+                file.side = ModPlatform::SideType::fromString(lower);
+            } else if (file.side != ModPlatform::SideType::fromString(lower)) {
                 file.side = ModPlatform::SideType::UniversalSide;
             }
         }

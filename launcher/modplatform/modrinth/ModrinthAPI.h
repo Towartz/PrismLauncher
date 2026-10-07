@@ -101,14 +101,21 @@ class ModrinthAPI final : public ResourceAPI {
     static QString mapMCVersionFromModrinth(QString v)
     {
         static const QString s_preString = " Pre-Release ";
+        static const QString s_rcString = " Release Candidate ";
         bool pre = false;
+        bool rc = false;
         if (v.contains("-pre")) {
             pre = true;
             v.replace("-pre", s_preString);
+        } else if (v.contains("-rc")) {
+            rc = true;
+            v.replace("-rc", s_rcString);
         }
         v.replace("-", " ");
         if (pre) {
             v.replace(" Pre Release ", s_preString);
+        } else if (rc) {
+            v.replace(" Release Candidate ", s_rcString);
         }
         return v;
     }
@@ -134,8 +141,12 @@ class ModrinthAPI final : public ResourceAPI {
             }
         }
         if (args.categoryIds.has_value() && !args.categoryIds->empty()) {
+            QStringList catFacets;
             for (const auto& category : args.categoryIds.value()) {
-                facetsList.append(QString(R"(["categories:%1"])").arg(category));
+                catFacets.append(QString(R"("categories:%1")").arg(category));
+            }
+            if (!catFacets.isEmpty()) {
+                facetsList.append(QString("[%1]").arg(catFacets.join(',')));
             }
         }
         if (!args.excludeDisclosureTypes.empty()) {

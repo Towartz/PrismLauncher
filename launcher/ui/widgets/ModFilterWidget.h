@@ -76,10 +76,40 @@ class ModFilterWidget : public QTabWidget {
         }
         bool operator!=(const Filter& other) const { return !(*this == other); }
 
+        static QString normalizeVersion(QString s)
+        {
+            s = s.toLower();
+            s.remove(' ');
+            s.remove('-');
+            s.remove('_');
+            s.replace("prerelease", "pre");
+            s.replace("releasecandidate", "rc");
+            return s;
+        }
+
+        static bool matchesVersionString(const QString& candidate, const QString& target)
+        {
+            if (candidate.compare(target, Qt::CaseInsensitive) == 0) {
+                return true;
+            }
+            return normalizeVersion(candidate) == normalizeVersion(target);
+        }
+
+        static bool checkSingleMcVersion(const QStringList& value, const Version& mcVer)
+        {
+            const auto targetStr = mcVer.toString();
+            for (const auto& v : value) {
+                if (matchesVersionString(v, targetStr)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         bool checkMcVersions(const QStringList& value)
         {
             for (const auto& mcVersion : versions) {
-                if (value.contains(mcVersion.toString())) {
+                if (checkSingleMcVersion(value, mcVersion)) {
                     return true;
                 }
             }

@@ -136,7 +136,6 @@ ModFilterWidget::ModFilterWidget(MinecraftInstance* instance, bool extended)
         proxy = allVersions;
         m_ui->version->setModel(proxy);
         m_ui->versions->hide();
-        m_ui->showAllVersions->hide();
         m_ui->environmentGroup->hide();
         m_ui->disclosureGroup->hide();
         m_ui->openSource->hide();
@@ -268,6 +267,18 @@ void ModFilterWidget::prepareBasicFilter()
         m_ui->rift->setChecked(loaders.testAnyFlag(ModPlatform::Rift));
         m_filter->loaders = loaders;
         auto def = m_instance->getPackProfile()->getComponentVersion("net.minecraft");
+        if (!def.isEmpty()) {
+            bool foundInRelease = false;
+            for (int r = 0; r < m_versionsProxy->rowCount(); ++r) {
+                if (m_versionsProxy->data(m_versionsProxy->index(r, 0), BaseVersionList::VersionRole).toString() == def) {
+                    foundInRelease = true;
+                    break;
+                }
+            }
+            if (!foundInRelease) {
+                m_ui->showAllVersions->setChecked(true);
+            }
+        }
         m_filter->versions.emplace_back(def);
         m_ui->versions->setCheckedItems({ def });
         m_ui->version->setCurrentIndex(m_ui->version->findText(def));

@@ -239,10 +239,13 @@ QString ResourceAPI::getGameVersionsString(const std::vector<Version>& mcVersion
 QString ResourceAPI::mapMCVersionToModrinth(const Version& v)
 {
     static const QString s_preString = " Pre-Release ";
+    static const QString s_rcString = " Release Candidate ";
     auto verStr = v.toString();
 
     if (verStr.contains(s_preString)) {
         verStr.replace(s_preString, "-pre");
+    } else if (verStr.contains(s_rcString)) {
+        verStr.replace(s_rcString, "-rc");
     }
     verStr.replace(" ", "-");
     return verStr;
