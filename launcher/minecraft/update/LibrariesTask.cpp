@@ -28,8 +28,8 @@ void LibrariesTask::executeTask()
     auto processArtifactPool = [this, inst, metacache](const QList<LibraryPtr>& pool, QStringList& errors, const QString& localPath) {
         for (auto lib : pool) {
             if (!lib) {
-                emitFailed(tr("Null jar is specified in the metadata, aborting."));
-                return false;
+                qWarning() << "Skipping null library in artifact pool";
+                continue;
             }
             auto dls = lib->getDownloads(inst->runtimeContext(), metacache, errors, localPath);
             for (auto dl : dls) {
@@ -45,13 +45,24 @@ void LibrariesTask::executeTask()
     libArtifactPool.append(profile->getNativeLibraries());
     libArtifactPool.append(profile->getMavenFiles());
     for (const auto& agent : profile->getAgents()) {
-        libArtifactPool.append(agent.library);
+        if (agent.library) {
+            libArtifactPool.append(agent.library);
+        }
     }
-    libArtifactPool.append(profile->getMainJar());
-    processArtifactPool(libArtifactPool, failedLocalLibraries, inst->getLocalLibraryPath());
+    if (auto mainJar = profile->getMainJar()) {
+        libArtifactPool.append(mainJar);
+    } else if (components->getComponent("net.minecraft")) {
+        emitFailed(tr("The main Minecraft jar metadata could not be loaded. Please check your internet connection or reload the instance components."));
+        return;
+    }
+    if (!processArtifactPool(libArtifactPool, failedLocalLibraries, inst->getLocalLibraryPath())) {
+        return;
+    }
 
     QStringList failedLocalJarMods;
-    processArtifactPool(profile->getJarMods(), failedLocalJarMods, inst->jarModsDir());
+    if (!processArtifactPool(profile->getJarMods(), failedLocalJarMods, inst->jarModsDir())) {
+        return;
+    }
 
     if (!failedLocalJarMods.empty() || !failedLocalLibraries.empty()) {
         downloadJob.reset();

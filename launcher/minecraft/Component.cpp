@@ -98,6 +98,9 @@ void Component::applyTo(LaunchProfile* profile)
 
 std::shared_ptr<class VersionFile> Component::getVersionFile() const
 {
+    if (!m_file && (!m_metaVersion || !m_metaVersion->isLoaded()) && !m_version.isEmpty()) {
+        const_cast<Component*>(this)->waitLoadMeta();
+    }
     if (m_metaVersion) {
         return m_metaVersion->data();
     } else {
@@ -222,12 +225,10 @@ bool Component::isMoveable()
     return true;
 }
 
-bool Component::isVersionChangeable(bool wait)
+bool Component::isVersionChangeable() const
 {
     auto list = getVersionList();
     if (list) {
-        if (wait)
-            list->waitToLoad();
         return list->count() != 0;
     }
     return false;
@@ -447,10 +448,13 @@ void Component::updateCachedData()
 
 void Component::waitLoadMeta()
 {
-    if (!m_loaded) {
-        if (!m_metaVersion || !m_metaVersion->isLoaded()) {
-            // wait for the loaded version from meta
-            m_metaVersion = APPLICATION->metadataIndex()->getLoadedVersion(m_uid, m_version);
+    if (!m_loaded || (!m_file && (!m_metaVersion || !m_metaVersion->isLoaded()))) {
+        if (!m_version.isEmpty() && (!m_metaVersion || !m_metaVersion->isLoaded())) {
+            auto metaIndex = APPLICATION->metadataIndex();
+            if (metaIndex) {
+                // wait for the loaded version from meta
+                m_metaVersion = metaIndex->getLoadedVersion(m_uid, m_version);
+            }
         }
         m_loaded = true;
         updateCachedData();
