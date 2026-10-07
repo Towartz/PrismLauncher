@@ -705,11 +705,11 @@ bool processZIP(Mod& mod, [[maybe_unused]] ProcessingLevel level, QByteArray* ou
     if (isValid) {
         if (outIconData && outIconData->isEmpty() && !details.icon_file.isEmpty()) {
             auto cleanIcon = normalizeIconPath(details.icon_file);
-            if (auto iconFile = zip.goToFile(cleanIcon); iconFile) {
-                *outIconData = iconFile->readAll();
+            if (const auto iconRes = zip.readFile(cleanIcon); iconRes) {
+                *outIconData = iconRes.value();
             } else if (cleanIcon != details.icon_file) {
-                if (auto rawIconFile = zip.goToFile(details.icon_file); rawIconFile) {
-                    *outIconData = rawIconFile->readAll();
+                if (const auto rawIconRes = zip.readFile(details.icon_file); rawIconRes) {
+                    *outIconData = rawIconRes.value();
                 }
             }
         }
