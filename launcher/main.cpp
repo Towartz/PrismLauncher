@@ -41,12 +41,19 @@
 #include "console/WindowsConsole.h"
 #endif
 
+#include <QQuickWindow>
+
 int main(int argc, char* argv[])
 {
 #if defined Q_OS_WIN32
     // used on Windows to attach the standard IO streams
     console::WindowsConsoleGuard _consoleGuard;
 #endif
+
+    if (!qEnvironmentVariableIsEmpty("PRISMLAUNCHER_DISABLE_GLVULKAN") ||
+        !qEnvironmentVariableIsEmpty("LAUNCHER_DISABLE_GLVULKAN")) {
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
+    }
 
     // initialize Qt
     Application app(argc, argv);

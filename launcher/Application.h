@@ -108,6 +108,7 @@ class Application : public QApplication {
         SupportsFlame = 1U << 1U,
         SupportsGameMode = 1U << 2U,
         SupportsMangoHud = 1U << 3U,
+        SupportsOpenGL = 1U << 4U,
     };
     Q_DECLARE_FLAGS(Capabilities, Capability)
 

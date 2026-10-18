@@ -99,6 +99,7 @@
 #include <QLibraryInfo>
 #include <QList>
 #include <QNetworkAccessManager>
+#include <QOpenGLContext>
 #include <QStringList>
 #include <QStringLiteral>
 #include <QStyleFactory>
@@ -1951,6 +1952,15 @@ void Application::updateCapabilities()
         m_capabilities |= SupportsMangoHud;
     }
 #endif
+
+    if (QProcessEnvironment::systemEnvironment()
+            .value(QStringLiteral("%1_DISABLE_GLVULKAN").arg(BuildConfig.LAUNCHER_ENVNAME))
+            .isEmpty()) {
+        QOpenGLContext ctx;
+        if (ctx.create()) {
+            m_capabilities |= SupportsOpenGL;
+        }
+    }
 }
 
 void Application::detectLibraries()

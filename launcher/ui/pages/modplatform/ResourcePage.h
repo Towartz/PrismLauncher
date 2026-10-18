@@ -139,6 +139,7 @@ class ResourcePage : public QWidget, public BasePage {
     void onQmlItemActivated(int row);
     void onQmlItemToggled(int row);
     void onRowsInserted(const QModelIndex& parent, int first, int last);
+    void onSearchJobStarted(Task* job);
     void cycleViewMode();
 
    protected:

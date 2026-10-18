@@ -210,9 +210,7 @@ void ResourcePage::openedImpl()
 
     if (m_model) {
         connect(m_model, &QAbstractItemModel::rowsInserted, this, &ResourcePage::onRowsInserted, Qt::UniqueConnection);
-        connect(m_model, &ResourceModel::searchJobStarted, this, [this](Task* job) {
-            m_fetchProgress.watch(job);
-        }, Qt::UniqueConnection);
+        connect(m_model, &ResourceModel::searchJobStarted, this, &ResourcePage::onSearchJobStarted, Qt::UniqueConnection);
     }
 
     auto currentPack = getCurrentPack();
@@ -839,9 +837,25 @@ void ResourcePage::openProject(const QVariant& projectID)
     }
 }
 
+void ResourcePage::onSearchJobStarted(Task* job)
+{
+    m_fetchProgress.watch(job);
+}
+
 void ResourcePage::initQuickWidget()
 {
     if (m_quickWidget || !m_model) {
+        return;
+    }
+
+    if (!(APPLICATION->capabilities() & Application::SupportsOpenGL)) {
+        m_viewStack->setCurrentWidget(m_ui->packView);
+        m_currentViewMode = ViewMode::Classic;
+        if (m_viewModeButton) {
+            updateViewModeButton();
+            m_viewModeButton->setEnabled(false);
+            m_viewModeButton->setToolTip(tr("Modern QML view unavailable without OpenGL."));
+        }
         return;
     }
 
@@ -849,7 +863,7 @@ void ResourcePage::initQuickWidget()
         m_themeBridge = new QmlThemeBridge(this);
     }
 
-    m_quickWidget = new QQuickWidget(m_viewStack);
+    m_quickWidget = new QQuickWidget();
     m_quickWidget->hide();
     m_quickWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_quickWidget->setMinimumWidth(260);
