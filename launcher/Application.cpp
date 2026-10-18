@@ -1953,9 +1953,7 @@ void Application::updateCapabilities()
     }
 #endif
 
-    if (QProcessEnvironment::systemEnvironment()
-            .value(QStringLiteral("%1_DISABLE_GLVULKAN").arg(BuildConfig.LAUNCHER_ENVNAME))
-            .isEmpty()) {
+    if (QProcessEnvironment::systemEnvironment().value(QStringLiteral("%1_DISABLE_GLVULKAN").arg(BuildConfig.LAUNCHER_ENVNAME)).isEmpty()) {
         QOpenGLContext ctx;
         if (ctx.create()) {
             m_capabilities |= SupportsOpenGL;

@@ -50,8 +50,7 @@ int main(int argc, char* argv[])
     console::WindowsConsoleGuard _consoleGuard;
 #endif
 
-    if (!qEnvironmentVariableIsEmpty("PRISMLAUNCHER_DISABLE_GLVULKAN") ||
-        !qEnvironmentVariableIsEmpty("LAUNCHER_DISABLE_GLVULKAN")) {
+    if (!qEnvironmentVariableIsEmpty("PRISMLAUNCHER_DISABLE_GLVULKAN") || !qEnvironmentVariableIsEmpty("LAUNCHER_DISABLE_GLVULKAN")) {
         QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     }
 
