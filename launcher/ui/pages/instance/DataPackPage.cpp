@@ -241,6 +241,9 @@ void DataPackPage::changeDataPackVersion()
 
         m_model->update();
     }
+    if (m_downloadDialog) {
+        m_downloadDialog->deleteLater();
+    }
 }
 
 GlobalDataPackPage::GlobalDataPackPage(MinecraftInstance* instance, QWidget* parent) : QWidget(parent), m_instance(instance)

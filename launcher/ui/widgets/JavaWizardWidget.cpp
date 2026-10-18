@@ -352,8 +352,8 @@ void JavaWizardWidget::on_javaBrowseBtn_clicked()
 
 void JavaWizardWidget::javaDownloadBtn_clicked()
 {
-    auto* jdialog = new Java::InstallDialog({}, nullptr, this);
-    jdialog->exec();
+    Java::InstallDialog jdialog({}, nullptr, this);
+    jdialog.exec();
 }
 
 void JavaWizardWidget::on_javaStatusBtn_clicked()

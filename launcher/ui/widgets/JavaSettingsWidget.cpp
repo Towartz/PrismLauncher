@@ -89,8 +89,8 @@ JavaSettingsWidget::JavaSettingsWidget(MinecraftInstance* instance, QWidget* par
                 [this, settings] { m_ui->javaPathTextBox->setText(settings->get("JavaPath").toString()); });
 
         connect(m_ui->javaDownloadBtn, &QPushButton::clicked, this, [this] {
-            auto* javaDialog = new Java::InstallDialog({}, m_instance, this);
-            javaDialog->exec();
+            Java::InstallDialog javaDialog({}, m_instance, this);
+            javaDialog.exec();
         });
         connect(m_ui->javaPathTextBox, &QLineEdit::textChanged, this, [this](const QString& newValue) {
             if (m_instance->settings()->get("JavaPath").toString() != newValue) {

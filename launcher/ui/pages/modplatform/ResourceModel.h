@@ -7,6 +7,7 @@
 #include <optional>
 
 #include <QAbstractListModel>
+#include <QPointer>
 #include <utility>
 
 #include "QObjectPtr.h"
@@ -135,10 +136,6 @@ class ResourceModel : public QAbstractListModel {
 
     QList<ModPlatform::IndexedPack::Ptr> m_packs;
     QList<DownloadTaskPtr> m_selected;
-
-    // HACK: We need this to prevent callbacks from calling the model after it has already been deleted.
-    // This leaks a tiny bit of memory per time the user has opened a resource dialog. How to make this better?
-    static QHash<ResourceModel*, bool> s_runningModels;
 
    private:
     /* Default search request callbacks */

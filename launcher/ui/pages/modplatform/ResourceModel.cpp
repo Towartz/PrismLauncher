@@ -28,11 +28,8 @@
 
 namespace ResourceDownload {
 
-QHash<ResourceModel*, bool> ResourceModel::s_runningModels;
-
 ResourceModel::ResourceModel(ResourceFolderModel* resourceList, const ResourceAPI* api) : m_resourceList(resourceList), m_api(api)
 {
-    s_runningModels.insert(this, true);
     if (APPLICATION_DYN) {
         m_currentInfoJob.setMaxConcurrent(APPLICATION->settings()->get("NumberOfConcurrentDownloads").toInt());
     }
@@ -40,7 +37,16 @@ ResourceModel::ResourceModel(ResourceFolderModel* resourceList, const ResourceAP
 
 ResourceModel::~ResourceModel()
 {
-    s_runningModels.find(this).value() = false;
+    if (m_currentSearchJob) {
+        m_currentSearchJob->abort();
+    }
+    if (m_currentInfoJob.isRunning()) {
+        m_currentInfoJob.abort();
+    }
+    if (m_currentIconJob) {
+        m_currentIconJob->abort();
+        m_currentIconJob.reset();
+    }
 }
 
 bool ResourceModel::isPackInstalled(ModPlatform::IndexedPack::Ptr pack) const
@@ -205,35 +211,36 @@ void ResourceModel::search()
         if (!projectId.isEmpty()) {
             auto [job, response] = m_api->getProjectTask(projectId, true, false);
 
-            QObject::connect(job.get(), &NetJob::succeeded, job.get(), [response, this] {
+            QPointer<ResourceModel> weak(this);
+            QObject::connect(job.get(), &NetJob::succeeded, job.get(), [response, weak] {
                 auto pack = std::make_shared<ModPlatform::IndexedPack>();
                 *pack = *response;
-                if (!s_runningModels.constFind(this).value()) {
+                if (!weak) {
                     return;
                 }
-                searchRequestForOneSucceeded(pack);
+                weak->searchRequestForOneSucceeded(pack);
             });
-            auto weak = job.toWeakRef();
-            QObject::connect(job.get(), &NetJob::failed, job.get(), [weak, this](const QString& reason) {
+            auto weakJob = job.toWeakRef();
+            QObject::connect(job.get(), &NetJob::failed, job.get(), [weakJob, weak](const QString& reason) {
                 int networkErrorCode = -1;
-                if (auto job = weak.lock()) {
+                if (auto job = weakJob.lock()) {
                     if (auto* failedAction = job->getFailedActions().at(0); failedAction) {
                         networkErrorCode = failedAction->replyStatusCode();
                     }
                 }
-                if (!s_runningModels.constFind(this).value()) {
+                if (!weak) {
                     return;
                 }
                 if (networkErrorCode == 404) {
-                    m_searchState = SearchState::ResetRequested;
+                    weak->m_searchState = SearchState::ResetRequested;
                 }
-                searchRequestFailed(reason, networkErrorCode);
+                weak->searchRequestFailed(reason, networkErrorCode);
             });
-            QObject::connect(job.get(), &NetJob::aborted, job.get(), [this] {
-                if (!s_runningModels.constFind(this).value()) {
+            QObject::connect(job.get(), &NetJob::aborted, job.get(), [weak] {
+                if (!weak) {
                     return;
                 }
-                searchRequestAborted();
+                weak->searchRequestAborted();
             });
 
             runSearchJob(job);
@@ -244,23 +251,24 @@ void ResourceModel::search()
 
     ResourceAPI::Callback<QList<ModPlatform::IndexedPack::Ptr>> callbacks{};
 
-    callbacks.onSucceed = [this](auto& doc) {
-        if (!s_runningModels.constFind(this).value()) {
+    QPointer<ResourceModel> weak(this);
+    callbacks.onSucceed = [weak](auto& doc) {
+        if (!weak) {
             return;
         }
-        searchRequestSucceeded(doc);
+        weak->searchRequestSucceeded(doc);
     };
-    callbacks.onFail = [this](const QString& reason, int networkErrorCode) {
-        if (!s_runningModels.constFind(this).value()) {
+    callbacks.onFail = [weak](const QString& reason, int networkErrorCode) {
+        if (!weak) {
             return;
         }
-        searchRequestFailed(reason, networkErrorCode);
+        weak->searchRequestFailed(reason, networkErrorCode);
     };
-    callbacks.onAbort = [this] {
-        if (!s_runningModels.constFind(this).value()) {
+    callbacks.onAbort = [weak] {
+        if (!weak) {
             return;
         }
-        searchRequestAborted();
+        weak->searchRequestAborted();
     };
 
     if (auto job = m_api->searchProjects(args, callbacks); job) {
@@ -276,6 +284,7 @@ void ResourceModel::loadEntry(const QModelIndex& entry)
         m_currentInfoJob.clear();
     }
 
+    QPointer<ResourceModel> weak(this);
     if (!pack->versionsLoaded) {
         auto args{ createVersionsArguments(entry) };
         ResourceAPI::Callback<QVector<ModPlatform::IndexedVersion>> callbacks{};
@@ -283,11 +292,11 @@ void ResourceModel::loadEntry(const QModelIndex& entry)
         auto addonId = pack->addonId;
         // Use default if no callbacks are set
         if (!callbacks.onSucceed) {
-            callbacks.onSucceed = [this, entry, addonId](auto& doc) {
-                if (!s_runningModels.constFind(this).value()) {
+            callbacks.onSucceed = [weak, entry, addonId](auto& doc) {
+                if (!weak) {
                     return;
                 }
-                versionRequestSucceeded(doc, addonId, entry);
+                weak->versionRequestSucceeded(doc, addonId, entry);
             };
         }
         if (!callbacks.onFail) {
@@ -305,26 +314,26 @@ void ResourceModel::loadEntry(const QModelIndex& entry)
     if (!pack->extraDataLoaded) {
         auto [job, response] = m_api->getProjectTask(pack->addonId.toString(), true);
 
-        QObject::connect(job.get(), &NetJob::succeeded, job.get(), [project = pack, response, this, entry] {
+        QObject::connect(job.get(), &NetJob::succeeded, job.get(), [project = pack, response, weak, entry] {
             // Preserve any version data already loaded into the pack, since the project request only carries the pack info
             auto versions = std::move(project->versions);
             auto versionsLoaded = project->versionsLoaded;
             *project = *response;
             project->versions = std::move(versions);
             project->versionsLoaded = versionsLoaded;
-            if (!s_runningModels.constFind(this).value()) {
+            if (!weak) {
                 return;
             }
-            infoRequestSucceeded(project, entry);
+            weak->infoRequestSucceeded(project, entry);
         });
-        QObject::connect(job.get(), &NetJob::failed, job.get(), [this](const QString& reason) {
-            if (!s_runningModels.constFind(this).value()) {
+        QObject::connect(job.get(), &NetJob::failed, job.get(), [weak](const QString& reason) {
+            if (!weak) {
                 return;
             }
             QMessageBox::critical(nullptr, tr("Error"), tr("A network error occurred. Could not load project info: %1").arg(reason));
         });
-        QObject::connect(job.get(), &NetJob::aborted, job.get(), [this] {
-            if (!s_runningModels.constFind(this).value()) {
+        QObject::connect(job.get(), &NetJob::aborted, job.get(), [weak] {
+            if (!weak) {
                 return;
             }
             qCritical() << tr("The request was aborted for an unknown reason");
@@ -358,6 +367,13 @@ void ResourceModel::clearData()
     beginResetModel();
     m_packs.clear();
     endResetModel();
+
+    m_currentlyRunningIconActions.clear();
+    m_failedIconActions.clear();
+    if (m_currentIconJob) {
+        m_currentIconJob->abort();
+        m_currentIconJob.reset();
+    }
 }
 
 void ResourceModel::runSearchJob(const Task::Ptr& ptr)
@@ -405,6 +421,8 @@ std::optional<QIcon> ResourceModel::getIcon(const QModelIndex& index, const QUrl
     if (!m_currentIconJob) {
         m_currentIconJob.reset(new NetJob("IconJob", APPLICATION->network()));
         m_currentIconJob->setAskRetry(false);
+    } else if (!m_currentIconJob->isRunning()) {
+        m_currentIconJob->clear();
     }
 
     if (m_currentlyRunningIconActions.contains(url)) {

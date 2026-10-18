@@ -863,7 +863,7 @@ void ResourcePage::initQuickWidget()
         m_themeBridge = new QmlThemeBridge(this);
     }
 
-    m_quickWidget = new QQuickWidget();
+    m_quickWidget = new QQuickWidget(this);
     m_quickWidget->hide();
     m_quickWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_quickWidget->setMinimumWidth(260);

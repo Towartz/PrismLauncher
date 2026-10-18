@@ -102,6 +102,8 @@ void ConcurrentTask::clear()
 
     m_done.clear();
     m_failed.clear();
+    m_succeeded.clear();
+    m_doing.clear();
     m_queue.clear();
     m_task_progress.clear();
 
