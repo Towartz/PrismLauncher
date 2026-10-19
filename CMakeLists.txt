@@ -441,6 +441,8 @@ if (NOT APPLE AND (NOT Launcher_UPDATER_GITHUB_REPO STREQUAL "" AND NOT Launcher
     set(Launcher_BUILD_UPDATER YES)
 endif()
 
+set(INSTALL_BUNDLE "full" CACHE STRING "Bundle dependencies for distribution (full or nodeps)")
+
 if(NOT (UNIX AND APPLE))
     # Install "portable.txt" if selected component is "portable"
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${Launcher_Portable_File}" DESTINATION "." COMPONENT portable EXCLUDE_FROM_ALL)

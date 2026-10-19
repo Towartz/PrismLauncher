@@ -1514,7 +1514,7 @@ endif()
 #### The bundle mess! ####
 # Bundle utilities are used to complete packages for different platforms - they add all the libraries that would otherwise be missing on the target system.
 # NOTE: it seems that this absolutely has to be here, and nowhere else.
-if(WIN32 OR (UNIX AND APPLE))
+if((WIN32 OR (UNIX AND APPLE)) AND NOT (INSTALL_BUNDLE STREQUAL "nodeps" OR Launcher_BUILD_PLATFORM STREQUAL "nixpkgs"))
     if(WIN32)
         set(QT_DEPLOY_TOOL_OPTIONS "--no-opengl-sw --qmldir \"${CMAKE_CURRENT_SOURCE_DIR}/ui/qml\" --no-system-d3d-compiler --no-system-dxc-compiler --skip-plugin-types generic,networkinformation")
     elseif(UNIX AND APPLE)
@@ -1569,11 +1569,14 @@ if(WIN32 OR (UNIX AND APPLE))
         CODE "file(WRITE \"\${CMAKE_INSTALL_PREFIX}/${RESOURCES_DEST_DIR}/qt.conf\" \" \")"
         COMPONENT bundle
     )
+endif()
+
+if(WIN32 OR (UNIX AND APPLE))
     # Add qtlogging.ini as a config file
     install(
         FILES "qtlogging.ini"
         DESTINATION ${CMAKE_INSTALL_PREFIX}/${RESOURCES_DEST_DIR}
-        COMPONENT bundle
+        COMPONENT Runtime
     )
 endif()
 
